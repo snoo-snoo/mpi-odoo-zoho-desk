@@ -78,7 +78,9 @@ class MpiZohoConnection(models.Model):
     inbound_team_id = fields.Many2one("helpdesk.team", string="Inbound Helpdesk team")
     catchup_interval_minutes = fields.Integer(default=15)
 
-    webhook_token = fields.Char(copy=False, default=lambda self: secrets.token_urlsafe(24))
+    webhook_token = fields.Char(
+        copy=False, default=lambda self: secrets.token_urlsafe(24), index=True
+    )
     webhook_id = fields.Char(copy=False, readonly=True)
     webhook_url = fields.Char(compute="_compute_webhook_url")
     ignore_source_id = fields.Char(copy=False, default=lambda self: str(uuid.uuid4()))
@@ -103,6 +105,10 @@ class MpiZohoConnection(models.Model):
     _company_uniq = models.Constraint(
         "UNIQUE(company_id)",
         "Only one Connection is allowed per company.",
+    )
+    _webhook_token_uniq = models.Constraint(
+        "UNIQUE(webhook_token)",
+        "Webhook token must be unique.",
     )
 
     @api.model
@@ -201,6 +207,17 @@ class MpiZohoConnection(models.Model):
     @api.model
     def _cron_catch_up(self):
         self.search([("active", "=", True), ("state", "=", "verified")]).action_catch_up()
+
+    def _schedule_catchup_once(self):
+        data = self.env.cr.precommit.data
+        if data.get("mpi.zoho.desk.catchup_scheduled"):
+            return
+        data["mpi.zoho.desk.catchup_scheduled"] = True
+        cron = self.env.ref(
+            "mpi_helpdesk_zoho.cron_mpi_helpdesk_zoho_catchup", raise_if_not_found=False
+        )
+        if cron:
+            cron._trigger()
 
     def _sync_from_desk(self, *, backfill):
         self.ensure_one()

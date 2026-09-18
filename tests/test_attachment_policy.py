@@ -4,6 +4,10 @@
 
 import unittest
 
+from lib_import import ensure_lib_package
+
+ensure_lib_package()
+
 from mpi_helpdesk_zoho.lib.attachment_policy import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MIME_ALLOW,

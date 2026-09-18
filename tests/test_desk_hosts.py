@@ -4,6 +4,10 @@
 
 import unittest
 
+from lib_import import ensure_lib_package
+
+ensure_lib_package()
+
 from mpi_helpdesk_zoho.lib.desk_hosts import accounts_root, desk_root
 from mpi_helpdesk_zoho.lib.zoho_jwt import jwks_url
 

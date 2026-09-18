@@ -4,6 +4,10 @@
 
 import unittest
 
+from lib_import import ensure_lib_package
+
+ensure_lib_package()
+
 from mpi_helpdesk_zoho.lib.ticket_fields import apply_desk_wins
 
 

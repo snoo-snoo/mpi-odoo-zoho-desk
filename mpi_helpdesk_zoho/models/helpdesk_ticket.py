@@ -46,9 +46,7 @@ class HelpdeskTicket(models.Model):
                     "payload": payload or {},
                 }
             )
-            cron = self.env.ref("mpi_helpdesk_zoho.cron_mpi_helpdesk_zoho_catchup", raise_if_not_found=False)
-            if cron:
-                cron._trigger()
+            connection._schedule_catchup_once()
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_mpi_helpdesk_zoho_connection"
+    <!-- helpdesk.menu_helpdesk_root is the Helpdesk app; more stable than Configuration. -->
+    <menuitem id="menu_mpi_helpdesk_zoho_root"
               name="Zoho Desk"
-              parent="helpdesk.helpdesk_menu_config"
-              action="action_mpi_zoho_connection"
+              parent="helpdesk.menu_helpdesk_root"
               groups="mpi_helpdesk_zoho.group_zoho_admin"
               sequence="80"/>
+    <menuitem id="menu_mpi_helpdesk_zoho_connection"
+              name="Connections"
+              parent="menu_mpi_helpdesk_zoho_root"
+              action="action_mpi_zoho_connection"
+              groups="mpi_helpdesk_zoho.group_zoho_admin"
+              sequence="10"/>
 </odoo>

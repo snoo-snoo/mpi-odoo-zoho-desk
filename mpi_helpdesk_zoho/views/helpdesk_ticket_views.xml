@@ -5,13 +5,11 @@
         <field name="model">helpdesk.ticket</field>
         <field name="inherit_id" ref="helpdesk.helpdesk_ticket_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
-                <page string="Zoho Desk" name="mpi_zoho_desk">
-                    <group>
-                        <field name="mpi_zoho_desk_ticket_id"/>
-                        <field name="mpi_zoho_source_removed"/>
-                    </group>
-                </page>
+            <xpath expr="//sheet" position="inside">
+                <group string="Zoho Desk" name="mpi_zoho_desk">
+                    <field name="mpi_zoho_desk_ticket_id"/>
+                    <field name="mpi_zoho_source_removed"/>
+                </group>
             </xpath>
         </field>
     </record>

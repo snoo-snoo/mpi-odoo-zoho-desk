@@ -52,5 +52,5 @@ class MpiZohoDeskWebhook(http.Controller):
             payload = json.loads(request.httprequest.get_data(as_text=True) or "{}")
         except json.JSONDecodeError:
             return request.make_response("invalid json", status=400)
-        request.env["mpi.zoho.desk.sync"].sudo().apply_webhook_event(connection, payload)
+        request.env["mpi.zoho.desk.sync"].sudo()._apply_webhook_event(connection, payload)
         return request.make_response("ok", status=200)

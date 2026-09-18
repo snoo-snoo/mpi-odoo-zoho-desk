@@ -3,7 +3,7 @@
 import logging
 from datetime import timedelta
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 from ..lib.attachment_policy import decide_attachment
 from ..lib.comment_visibility import desk_thread_to_odoo, odoo_message_to_desk
@@ -22,6 +22,18 @@ class MpiZohoSync(models.AbstractModel):
     _name = "mpi.zoho.desk.sync"
     _description = "Ticket Sync"
 
+    def _cron_keep_going(self, done=1, remaining=None):
+        if not self.env.context.get("cron_id"):
+            return True
+        cron = self.env["ir.cron"]
+        if not hasattr(cron, "_commit_progress"):
+            return True
+        kwargs = {}
+        if remaining is not None:
+            kwargs["remaining"] = remaining
+        return bool(cron._commit_progress(done, **kwargs))
+
+    @api.private
     def _pull_connection(self, connection, *, backfill):
         client = connection._make_client()
         cutoff = None
@@ -41,6 +53,8 @@ class MpiZohoSync(models.AbstractModel):
                     self._apply_desk_ticket(connection, client, row)
                 except Exception:
                     _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
+                if not self._cron_keep_going(1):
+                    return
             if len(tickets) < page_size:
                 break
             start += len(tickets)
@@ -207,13 +221,20 @@ class MpiZohoSync(models.AbstractModel):
     def _sync_threads_in(self, connection, client, mapping, desk_id):
         payload = client.list_threads(desk_id)
         threads = payload.get("data") or payload.get("threads") or []
+        thread_ids = [str(thread.get("id") or "") for thread in threads if thread.get("id")]
+        known = set(
+            self.env["mpi.zoho.desk.comment.map"]
+            .search(
+                [
+                    ("ticket_map_id", "=", mapping.id),
+                    ("desk_thread_id", "in", thread_ids),
+                ]
+            )
+            .mapped("desk_thread_id")
+        ) if thread_ids else set()
         for thread in threads:
             thread_id = str(thread.get("id") or "")
-            if not thread_id:
-                continue
-            if self.env["mpi.zoho.desk.comment.map"].search_count(
-                [("ticket_map_id", "=", mapping.id), ("desk_thread_id", "=", thread_id)]
-            ):
+            if not thread_id or thread_id in known:
                 continue
             visibility = desk_thread_to_odoo(is_public=bool(thread.get("isPublic", thread.get("ispublic"))))
             subtype = "mail.mt_comment" if visibility == "public" else "mail.mt_note"
@@ -233,11 +254,20 @@ class MpiZohoSync(models.AbstractModel):
     def _sync_attachments_in(self, connection, client, mapping, desk_id, detail):
         payload = client.list_attachments(desk_id)
         attachments = payload.get("data") or []
+        att_ids = [str(row.get("id") or "") for row in attachments if row.get("id")]
+        known = set(
+            self.env["mpi.zoho.desk.attachment.map"]
+            .search(
+                [
+                    ("ticket_map_id", "=", mapping.id),
+                    ("desk_attachment_id", "in", att_ids),
+                ]
+            )
+            .mapped("desk_attachment_id")
+        ) if att_ids else set()
         for row in attachments:
             desk_att_id = str(row.get("id") or "")
-            if desk_att_id and self.env["mpi.zoho.desk.attachment.map"].search_count(
-                [("ticket_map_id", "=", mapping.id), ("desk_attachment_id", "=", desk_att_id)]
-            ):
+            if desk_att_id and desk_att_id in known:
                 continue
             size = int(row.get("size") or 0)
             mimetype = row.get("type") or row.get("contentType") or "application/octet-stream"
@@ -290,6 +320,7 @@ class MpiZohoSync(models.AbstractModel):
                 }
             )
 
+    @api.private
     def _flush_outbox(self, connection):
         client = connection._make_client()
         pending = self.env["mpi.zoho.desk.outbox"].search(
@@ -303,6 +334,8 @@ class MpiZohoSync(models.AbstractModel):
             except DeskClientError as exc:
                 row.write({"state": "error", "error": str(exc)})
                 _logger.warning("Outbox %s failed: %s", row.id, exc)
+            if not self._cron_keep_going(1):
+                return
 
     def _flush_one(self, connection, client, row):
         ticket = row.helpdesk_ticket_id
@@ -428,7 +461,8 @@ class MpiZohoSync(models.AbstractModel):
             }
         )
 
-    def apply_webhook_event(self, connection, event):
+    @api.private
+    def _apply_webhook_event(self, connection, event):
         payload = event if isinstance(event, dict) else {}
         ticket_payload = payload.get("payload") or payload.get("ticket") or payload
         desk_id = ticket_payload.get("id") or payload.get("ticketId")

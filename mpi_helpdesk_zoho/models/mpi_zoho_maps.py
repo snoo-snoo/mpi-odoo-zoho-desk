@@ -58,7 +58,12 @@ class MpiZohoTagMap(models.Model):
         "mpi.zoho.desk.connection", required=True, ondelete="cascade", index=True
     )
     desk_tag = fields.Char(required=True)
-    tag_id = fields.Many2one("helpdesk.tag", required=True, ondelete="cascade")
+    tag_id = fields.Many2one(
+        "helpdesk.tag",
+        required=True,
+        ondelete="cascade",
+        help="Enterprise Helpdesk tag (helpdesk.tag).",
+    )
 
 
 class MpiZohoFieldMap(models.Model):

@@ -1,0 +1,379 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* mpi_helpdesk_zoho
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-18 09:40+0000\n"
+"PO-Revision-Date: 2026-09-18 09:40+0000\n"
+"Last-Translator: \n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.module.category,name:mpi_helpdesk_zoho.module_category_mpi_helpdesk_zoho
+#: model:res.groups.privilege,name:mpi_helpdesk_zoho.privilege_mpi_helpdesk_zoho
+#: model:ir.ui.menu,name:mpi_helpdesk_zoho.menu_mpi_helpdesk_zoho_root
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_helpdesk_ticket_form_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_res_config_settings_mpi_helpdesk_zoho
+msgid "Zoho Desk"
+msgstr "Zoho Desk"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_connection
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_res_config_settings__mpi_zoho_connection_id
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_res_config_settings_mpi_helpdesk_zoho
+msgid "Connection"
+msgstr "Verbindung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.actions.act_window,name:mpi_helpdesk_zoho.action_mpi_zoho_connection
+#: model:ir.ui.menu,name:mpi_helpdesk_zoho.menu_mpi_helpdesk_zoho_connection
+msgid "Connections"
+msgstr "Verbindungen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_helpdesk_ticket__mpi_zoho_desk_ticket_id
+msgid "Desk ticket"
+msgstr "Desk-Ticket"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_helpdesk_ticket__mpi_zoho_source_removed
+msgid "Removed at source"
+msgstr "An der Quelle entfernt"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__desk_org_id
+msgid "Desk Organization"
+msgstr "Desk-Organisation"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__accounts_dc
+msgid "Accounts DC"
+msgstr "Accounts-Rechenzentrum"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__accounts_dc
+msgid "Leave empty to use the same DC as Desk."
+msgstr "Leer lassen, um dasselbe Rechenzentrum wie Desk zu verwenden."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__inbound_team_id
+msgid "Inbound Helpdesk team"
+msgstr "Eingehendes Helpdesk-Team"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Test Connection"
+msgstr "Verbindung testen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Register webhook"
+msgstr "Webhook registrieren"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Backfill"
+msgstr "Rückfüllen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Catch up now"
+msgstr "Jetzt nachziehen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Zoho self-client"
+msgstr "Zoho Self-Client"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Webhook"
+msgstr "Webhook"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Attachments"
+msgstr "Anhänge"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__attachment_direction__both
+msgid "Both ways"
+msgstr "In beide Richtungen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__attachment_direction__odoo_to_desk
+msgid "Odoo → Desk"
+msgstr "Odoo → Desk"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__attachment_direction__desk_to_odoo
+msgid "Desk → Odoo"
+msgstr "Desk → Odoo"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__backfill_mode__lookback
+msgid "Open + lookback"
+msgstr "Offen + Rückblick"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__backfill_mode__entire
+msgid "Entire history"
+msgstr "Gesamte Historie"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__state__draft
+msgid "Draft"
+msgstr "Entwurf"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__state__verified
+msgid "Verified"
+msgstr "Geprüft"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_connection__state__error
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__state__error
+msgid "Error"
+msgstr "Fehler"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_team_map
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Team Map"
+msgstr "Team-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_department_map
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Department Map"
+msgstr "Abteilungs-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_status_map
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Status Map"
+msgstr "Status-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_agent_map
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Agent Map"
+msgstr "Agenten-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_tag_map
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Tag Map"
+msgstr "Tag-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Custom fields"
+msgstr "Benutzerdefinierte Felder"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+msgid "Outbox"
+msgstr "Ausgangskorb"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_field_map
+msgid "Custom field map"
+msgstr "Feldzuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_ticket_map
+msgid "Ticket map"
+msgstr "Ticket-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_comment_map
+msgid "Comment map"
+msgstr "Kommentar-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_attachment_map
+msgid "Attachment map"
+msgstr "Anhang-Zuordnung"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_outbox
+msgid "Desk outbox"
+msgstr "Desk-Ausgangskorb"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_sync
+msgid "Ticket Sync"
+msgstr "Ticket-Synchronisation"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_team_map__desk_department_id
+msgid "Desk department used when this team creates a ticket."
+msgstr "Desk-Abteilung, die verwendet wird, wenn dieses Team ein Ticket anlegt."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_tag_map__tag_id
+msgid "Enterprise Helpdesk tag (helpdesk.tag)."
+msgstr "Enterprise-Helpdesk-Tag (helpdesk.tag)."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.constraint,message:mpi_helpdesk_zoho.constraint_mpi_zoho_desk_connection_company_uniq
+msgid "Only one Connection is allowed per company."
+msgstr "Pro Unternehmen ist nur eine Verbindung zulässig."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.constraint,message:mpi_helpdesk_zoho.constraint_mpi_zoho_desk_connection_webhook_token_uniq
+msgid "Webhook token must be unique."
+msgstr "Der Webhook-Token muss eindeutig sein."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.constraint,message:mpi_helpdesk_zoho.constraint_mpi_zoho_desk_ticket_map_ticket_uniq
+msgid "A Helpdesk Ticket maps to only one Desk ticket."
+msgstr "Ein Helpdesk-Ticket ist nur einem Desk-Ticket zugeordnet."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.constraint,message:mpi_helpdesk_zoho.constraint_mpi_zoho_desk_ticket_map_desk_uniq
+msgid "A Desk ticket maps to only one Helpdesk Ticket on a Connection."
+msgstr "Ein Desk-Ticket ist auf einer Verbindung nur einem Helpdesk-Ticket zugeordnet."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.constraint,message:mpi_helpdesk_zoho.constraint_mpi_zoho_desk_comment_map_thread_uniq
+msgid "Each Desk thread is mapped once."
+msgstr "Jeder Desk-Thread wird nur einmal zugeordnet."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__event_type__create_ticket
+msgid "Create ticket"
+msgstr "Ticket anlegen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__event_type__update_ticket
+msgid "Update ticket"
+msgstr "Ticket aktualisieren"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__event_type__add_comment
+msgid "Add comment"
+msgstr "Kommentar hinzufügen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__event_type__add_attachment
+msgid "Add attachment"
+msgstr "Anhang hinzufügen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__event_type__close_ticket
+msgid "Close ticket"
+msgstr "Ticket schließen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__state__pending
+msgid "Pending"
+msgstr "Ausstehend"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_outbox__state__done
+msgid "Done"
+msgstr "Erledigt"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_ticket_map__last_origin__desk
+msgid "Desk"
+msgstr "Desk"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_ticket_map__last_origin__odoo
+msgid "Odoo"
+msgstr "Odoo"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_ticket_map__last_origin__connector
+msgid "Connector"
+msgstr "Connector"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_attachment_map__stored_as__store
+msgid "File"
+msgstr "Datei"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_attachment_map__stored_as__url_only
+msgid "Name and URL"
+msgstr "Name und URL"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields.selection,name:mpi_helpdesk_zoho.selection__mpi_zoho_desk_attachment_map__stored_as__reject
+msgid "Rejected"
+msgstr "Abgelehnt"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.actions.server,name:mpi_helpdesk_zoho.cron_mpi_helpdesk_zoho_catchup_ir_actions_server
+#: model:ir.cron,cron_name:mpi_helpdesk_zoho.cron_mpi_helpdesk_zoho_catchup
+msgid "Zoho Desk Connector: catch-up"
+msgstr "Zoho-Desk-Connector: Nachzug"
+
+#. module: mpi_helpdesk_zoho
+#: model:res.groups,name:mpi_helpdesk_zoho.group_zoho_admin
+msgid "Administrator"
+msgstr "Administrator"
+
+#. module: mpi_helpdesk_zoho
+#: model:res.groups,comment:mpi_helpdesk_zoho.group_zoho_admin
+msgid "Configure Connections, maps, and Zoho self-client credentials."
+msgstr "Verbindungen, Zuordnungen und Zoho-Self-Client-Zugangsdaten konfigurieren."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.rule,name:mpi_helpdesk_zoho.rule_connection_company
+msgid "Connection: company"
+msgstr "Verbindung: Unternehmen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_res_config_settings_mpi_helpdesk_zoho
+msgid "Desk Connection"
+msgstr "Desk-Verbindung"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_res_config_settings_mpi_helpdesk_zoho
+msgid "One Connection per company. Open it to set the Zoho self-client and maps."
+msgstr "Eine Verbindung pro Unternehmen. Öffnen, um den Zoho-Self-Client und die Zuordnungen festzulegen."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_res_config_settings_mpi_helpdesk_zoho
+msgid "Open Connection"
+msgstr "Verbindung öffnen"
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+msgid "The Connection is missing Zoho self-client credentials."
+msgstr "Der Verbindung fehlen die Zoho-Self-Client-Zugangsdaten."
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+#, python-format
+msgid "Desk refused the Connection: %s"
+msgstr "Desk hat die Verbindung abgelehnt: %s"
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+#, python-format
+msgid ""
+"Desk could not create the webhook. Paste this URL in Desk instead:\n"
+"%s\n"
+"\n"
+"%s"
+msgstr ""
+"Desk konnte den Webhook nicht anlegen. Diese URL stattdessen in Desk einfügen:\n"
+"%s\n"
+"\n"
+"%s"
