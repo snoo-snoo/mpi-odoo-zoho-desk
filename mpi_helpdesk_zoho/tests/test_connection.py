@@ -78,6 +78,32 @@ class TestConnection(TransactionCase):
         )
         self.assertFalse(outbox)
 
+    def test_self_client_code_is_exchanged_for_refresh_token(self):
+        connection = self.env["mpi.zoho.desk.connection"].create(
+            {
+                "name": "Desk EU",
+                "desk_org_id": "1",
+                "company_id": self.env.company.id,
+                "client_id": "cid",
+                "client_secret": "csecret",
+                "authorization_code": "1000.grant",
+            }
+        )
+
+        class FakeTransport:
+            def request(self, method, url, **kwargs):
+                return {
+                    "status_code": 200,
+                    "json": {
+                        "access_token": "acc",
+                        "refresh_token": "1000.refresh",
+                    },
+                }
+
+        connection._ensure_refresh_token(transport=FakeTransport())
+        self.assertEqual(connection.refresh_token, "1000.refresh")
+        self.assertFalse(connection.authorization_code)
+
 
 @tagged("post_install", "-at_install")
 class TestWebhookHttp(HttpCase):

@@ -52,6 +52,42 @@ class DeskClient:
             files=files,
         )
 
+    def _token_payload(self, response):
+        payload = response.get("json") or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        return payload
+
+    def _raise_token_error(self, fallback, response):
+        payload = self._token_payload(response)
+        zoho_error = payload.get("error_description") or payload.get("error")
+        message = "%s: %s" % (fallback, zoho_error) if zoho_error else fallback
+        raise DeskClientError(message, response.get("status_code"), response)
+
+    def exchange_authorization_code(self, code):
+        url = "%s/oauth/v2/token" % accounts_root(self.accounts_dc)
+        response = self._request(
+            "POST",
+            url,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "code": code,
+            },
+        )
+        payload = self._token_payload(response)
+        if response.get("status_code", 200) >= 400 or payload.get("error"):
+            self._raise_token_error("Self-Client Code exchange failed", response)
+        refresh = payload.get("refresh_token")
+        if not refresh:
+            self._raise_token_error(
+                "Self-Client Code exchange returned no refresh_token", response
+            )
+        self.refresh_token = refresh
+        self._access_token = payload.get("access_token")
+        return refresh
+
     def refresh_access_token(self):
         url = "%s/oauth/v2/token" % accounts_root(self.accounts_dc)
         response = self._request(
@@ -64,11 +100,12 @@ class DeskClient:
                 "refresh_token": self.refresh_token,
             },
         )
-        if response.get("status_code", 200) >= 400:
-            raise DeskClientError("Token refresh failed", response.get("status_code"), response)
-        token = response.get("json", {}).get("access_token")
+        payload = self._token_payload(response)
+        if response.get("status_code", 200) >= 400 or payload.get("error"):
+            self._raise_token_error("Token refresh failed", response)
+        token = payload.get("access_token")
         if not token:
-            raise DeskClientError("Token refresh returned no access_token", payload=response)
+            self._raise_token_error("Token refresh returned no access_token", response)
         self._access_token = token
         return token
 

@@ -43,7 +43,8 @@
                     <group string="Zoho self-client" groups="mpi_helpdesk_zoho.group_zoho_admin">
                         <field name="client_id"/>
                         <field name="client_secret" password="True"/>
-                        <field name="refresh_token" password="True"/>
+                        <field name="authorization_code"/>
+                        <field name="refresh_token" password="True" invisible="1"/>
                     </group>
                     <group string="Webhook">
                         <field name="webhook_url" readonly="1"/>

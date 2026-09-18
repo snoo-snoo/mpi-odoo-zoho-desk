@@ -55,6 +55,13 @@ class MpiZohoConnection(models.Model):
     )
     client_id = fields.Char(groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False)
     client_secret = fields.Char(groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False)
+    authorization_code = fields.Char(
+        string="Self-Client Code",
+        groups="mpi_helpdesk_zoho.group_zoho_admin",
+        copy=False,
+        help="Paste the code from Zoho API Console (Generate Code). "
+        "It is valid for 10 minutes. Test Connection exchanges it.",
+    )
     refresh_token = fields.Char(groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False)
 
     attachment_direction = fields.Selection(
@@ -135,20 +142,48 @@ class MpiZohoConnection(models.Model):
         self.ensure_one()
         return set(self.department_map_ids.mapped("desk_department_id"))
 
-    def _make_client(self, transport=None):
+    def _token_client(self, transport=None):
         self.ensure_one()
-        if not (self.client_id and self.client_secret and self.refresh_token and self.desk_org_id):
-            raise UserError(_("The Connection is missing Zoho self-client credentials."))
         return DeskClient(
-            org_id=self.desk_org_id,
+            org_id=self.desk_org_id or "",
             dc=self.desk_dc,
             accounts_dc=self.accounts_dc or self.desk_dc,
             client_id=self.client_id,
             client_secret=self.client_secret,
-            refresh_token=self.refresh_token,
+            refresh_token=self.refresh_token or "",
             transport=transport or RequestsTransport(),
             ignore_source_id=self.ignore_source_id,
         )
+
+    def _ensure_refresh_token(self, transport=None):
+        self.ensure_one()
+        code = (self.authorization_code or "").strip()
+        if not code:
+            return
+        if not (self.client_id and self.client_secret):
+            raise UserError(
+                _("Enter the Zoho self-client ID and secret before the Self-Client Code.")
+            )
+        client = self._token_client(transport=transport)
+        try:
+            refresh = client.exchange_authorization_code(code)
+        except DeskClientError as exc:
+            self.write({"state": "error", "last_error": str(exc)})
+            raise UserError(_("Desk refused the Self-Client Code: %s") % exc) from exc
+        self.write({"refresh_token": refresh, "authorization_code": False})
+
+    def _make_client(self, transport=None):
+        self.ensure_one()
+        self._ensure_refresh_token(transport=transport)
+        if not (self.client_id and self.client_secret and self.refresh_token and self.desk_org_id):
+            raise UserError(
+                _(
+                    "The Connection is missing Zoho self-client credentials. "
+                    "Enter Client ID, Client Secret, Desk Organization, "
+                    "and a fresh Self-Client Code."
+                )
+            )
+        return self._token_client(transport=transport)
 
     def action_test_connection(self):
         self.ensure_one()

@@ -351,10 +351,45 @@ msgid "Open Connection"
 msgstr "Verbindung öffnen"
 
 #. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__authorization_code
+msgid "Self-Client Code"
+msgstr "Self-Client-Code"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__authorization_code
+msgid ""
+"Paste the code from Zoho API Console (Generate Code). It is valid for 10 "
+"minutes. Test Connection exchanges it."
+msgstr ""
+"Code aus der Zoho API Console (Generate Code) einfügen. 10 Minuten gültig. "
+"Verbindung testen tauscht ihn ein."
+
+#. module: mpi_helpdesk_zoho
 #. odoo-python
 #: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
-msgid "The Connection is missing Zoho self-client credentials."
-msgstr "Der Verbindung fehlen die Zoho-Self-Client-Zugangsdaten."
+msgid "Enter the Zoho self-client ID and secret before the Self-Client Code."
+msgstr ""
+"Zoho-Self-Client-ID und Secret eintragen, bevor der Self-Client-Code "
+"eingefügt wird."
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+#, python-format
+msgid "Desk refused the Self-Client Code: %s"
+msgstr "Desk hat den Self-Client-Code abgelehnt: %s"
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+msgid ""
+"The Connection is missing Zoho self-client credentials. "
+"Enter Client ID, Client Secret, Desk Organization, "
+"and a fresh Self-Client Code."
+msgstr ""
+"Der Verbindung fehlen die Zoho-Self-Client-Zugangsdaten. "
+"Client-ID, Client Secret, Desk-Organisation und einen frischen "
+"Self-Client-Code eintragen."
 
 #. module: mpi_helpdesk_zoho
 #. odoo-python
