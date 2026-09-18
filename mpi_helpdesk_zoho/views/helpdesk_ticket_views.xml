@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_helpdesk_ticket_form_zoho" model="ir.ui.view">
+        <field name="name">helpdesk.ticket.form.zoho</field>
+        <field name="model">helpdesk.ticket</field>
+        <field name="inherit_id" ref="helpdesk.helpdesk_ticket_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Zoho Desk" name="mpi_zoho_desk">
+                    <group>
+                        <field name="mpi_zoho_desk_ticket_id"/>
+                        <field name="mpi_zoho_source_removed"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

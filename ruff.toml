@@ -1,0 +1,4 @@
+line-length = 100
+
+[lint]
+per-file-ignores = { "__init__.py" = ["F401"] }

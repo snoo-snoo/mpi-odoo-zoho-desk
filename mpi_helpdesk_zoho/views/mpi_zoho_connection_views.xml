@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_mpi_zoho_connection_list" model="ir.ui.view">
+        <field name="name">mpi.zoho.desk.connection.list</field>
+        <field name="model">mpi.zoho.desk.connection</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="desk_org_id"/>
+                <field name="desk_dc"/>
+                <field name="state"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_mpi_zoho_connection_form" model="ir.ui.view">
+        <field name="name">mpi.zoho.desk.connection.form</field>
+        <field name="model">mpi.zoho.desk.connection</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_test_connection" type="object" string="Test Connection" class="btn-primary"/>
+                    <button name="action_register_webhook" type="object" string="Register webhook"/>
+                    <button name="action_backfill" type="object" string="Backfill"/>
+                    <button name="action_catch_up" type="object" string="Catch up now"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="desk_org_id"/>
+                            <field name="desk_dc"/>
+                            <field name="accounts_dc"/>
+                        </group>
+                    </group>
+                    <group string="Zoho self-client" groups="mpi_helpdesk_zoho.group_zoho_admin">
+                        <field name="client_id"/>
+                        <field name="client_secret" password="True"/>
+                        <field name="refresh_token" password="True"/>
+                    </group>
+                    <group string="Webhook">
+                        <field name="webhook_url" readonly="1"/>
+                        <field name="webhook_id" readonly="1"/>
+                        <field name="ignore_source_id" readonly="1"/>
+                    </group>
+                    <group string="Attachments">
+                        <field name="attachment_direction"/>
+                        <field name="attachment_max_bytes"/>
+                        <field name="attachment_mime_allow"/>
+                    </group>
+                    <group string="Backfill">
+                        <field name="backfill_mode"/>
+                        <field name="backfill_lookback_days"
+                               invisible="backfill_mode != 'lookback'"/>
+                        <field name="inbound_team_id"/>
+                        <field name="catchup_interval_minutes"/>
+                    </group>
+                    <notebook>
+                        <page string="Team Map">
+                            <field name="team_map_ids">
+                                <list editable="bottom">
+                                    <field name="team_id"/>
+                                    <field name="desk_department_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Department Map">
+                            <field name="department_map_ids">
+                                <list editable="bottom">
+                                    <field name="desk_department_id"/>
+                                    <field name="desk_department_name"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Status Map">
+                            <field name="status_map_ids">
+                                <list editable="bottom">
+                                    <field name="desk_status"/>
+                                    <field name="stage_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Agent Map">
+                            <field name="agent_map_ids">
+                                <list editable="bottom">
+                                    <field name="desk_agent_id"/>
+                                    <field name="desk_agent_email"/>
+                                    <field name="user_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Tag Map">
+                            <field name="tag_map_ids">
+                                <list editable="bottom">
+                                    <field name="desk_tag"/>
+                                    <field name="tag_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Custom fields">
+                            <field name="field_map_ids">
+                                <list editable="bottom">
+                                    <field name="desk_field"/>
+                                    <field name="helpdesk_field"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Outbox">
+                            <field name="outbox_ids" readonly="1">
+                                <list>
+                                    <field name="event_type"/>
+                                    <field name="helpdesk_ticket_id"/>
+                                    <field name="state"/>
+                                    <field name="error"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <group>
+                        <field name="last_error"/>
+                        <field name="last_catchup_at"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mpi_zoho_connection" model="ir.actions.act_window">
+        <field name="name">Connections</field>
+        <field name="res_model">mpi.zoho.desk.connection</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

@@ -1,0 +1,14 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_connection_user,mpi.zoho.desk.connection.user,model_mpi_zoho_desk_connection,helpdesk.group_helpdesk_user,1,0,0,0
+access_connection_admin,mpi.zoho.desk.connection.admin,model_mpi_zoho_desk_connection,group_zoho_admin,1,1,1,1
+access_agent_map_admin,mpi.zoho.desk.agent.map.admin,model_mpi_zoho_desk_agent_map,group_zoho_admin,1,1,1,1
+access_status_map_admin,mpi.zoho.desk.status.map.admin,model_mpi_zoho_desk_status_map,group_zoho_admin,1,1,1,1
+access_team_map_admin,mpi.zoho.desk.team.map.admin,model_mpi_zoho_desk_team_map,group_zoho_admin,1,1,1,1
+access_department_map_admin,mpi.zoho.desk.department.map.admin,model_mpi_zoho_desk_department_map,group_zoho_admin,1,1,1,1
+access_tag_map_admin,mpi.zoho.desk.tag.map.admin,model_mpi_zoho_desk_tag_map,group_zoho_admin,1,1,1,1
+access_field_map_admin,mpi.zoho.desk.field.map.admin,model_mpi_zoho_desk_field_map,group_zoho_admin,1,1,1,1
+access_ticket_map_user,mpi.zoho.desk.ticket.map.user,model_mpi_zoho_desk_ticket_map,helpdesk.group_helpdesk_user,1,0,0,0
+access_ticket_map_admin,mpi.zoho.desk.ticket.map.admin,model_mpi_zoho_desk_ticket_map,group_zoho_admin,1,1,1,1
+access_comment_map_admin,mpi.zoho.desk.comment.map.admin,model_mpi_zoho_desk_comment_map,group_zoho_admin,1,1,1,1
+access_attachment_map_admin,mpi.zoho.desk.attachment.map.admin,model_mpi_zoho_desk_attachment_map,group_zoho_admin,1,1,1,1
+access_outbox_admin,mpi.zoho.desk.outbox.admin,model_mpi_zoho_desk_outbox,group_zoho_admin,1,1,1,1

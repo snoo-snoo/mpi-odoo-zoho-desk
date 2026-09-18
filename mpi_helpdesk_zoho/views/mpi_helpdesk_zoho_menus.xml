@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_mpi_helpdesk_zoho_connection"
+              name="Zoho Desk"
+              parent="helpdesk.helpdesk_menu_config"
+              action="action_mpi_zoho_connection"
+              groups="mpi_helpdesk_zoho.group_zoho_admin"
+              sequence="80"/>
+</odoo>

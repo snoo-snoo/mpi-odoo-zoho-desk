@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_res_config_settings_mpi_helpdesk_zoho" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.mpi.helpdesk.zoho</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="helpdesk.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Zoho Desk" string="Zoho Desk" name="mpi_helpdesk_zoho">
+                    <block title="Connection" name="mpi_zoho_connection_settings">
+                        <setting string="Desk Connection" help="One Connection per company. Open it to set the Zoho self-client and maps.">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <button name="action_open_mpi_zoho_connection" type="object" string="Open Connection" class="btn-primary"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
