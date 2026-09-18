@@ -72,6 +72,24 @@ class TestDeskClientToken(unittest.TestCase):
             client.refresh_access_token()
         self.assertIn("invalid_client", str(ctx.exception))
 
+    def test_ticket_list_error_includes_zoho_code(self):
+        transport = FakeTransport(
+            [
+                {
+                    "status_code": 403,
+                    "json": {
+                        "errorCode": "OAUTH_ORG_MISMATCH",
+                        "message": "The orgId does not match the token.",
+                    },
+                }
+            ]
+        )
+        client = _client(transport, refresh_token="1000.refresh")
+        client._access_token = "acc"
+        with self.assertRaises(DeskClientError) as ctx:
+            client.list_tickets(**{"from": 1, "limit": 1})
+        self.assertIn("OAUTH_ORG_MISMATCH", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

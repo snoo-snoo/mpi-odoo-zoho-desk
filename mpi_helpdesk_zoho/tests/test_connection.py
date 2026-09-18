@@ -104,6 +104,37 @@ class TestConnection(TransactionCase):
         self.assertEqual(connection.refresh_token, "1000.refresh")
         self.assertFalse(connection.authorization_code)
 
+    def test_probe_retries_without_org_on_mismatch(self):
+        connection = self.env["mpi.zoho.desk.connection"].create(
+            {
+                "name": "Desk EU",
+                "desk_org_id": "wrong-org",
+                "company_id": self.env.company.id,
+            }
+        )
+
+        class FakeTransport:
+            def __init__(self):
+                self.calls = []
+
+            def request(self, method, url, **kwargs):
+                self.calls.append(kwargs.get("headers") or {})
+                if len(self.calls) == 1:
+                    return {
+                        "status_code": 403,
+                        "json": {
+                            "errorCode": "OAUTH_ORG_MISMATCH",
+                            "message": "The orgId does not match the token.",
+                        },
+                    }
+                return {"status_code": 200, "json": {"data": []}}
+
+        client = connection._token_client(transport=FakeTransport())
+        client._access_token = "acc"
+        page = connection._probe_tickets(client)
+        self.assertEqual(page.get("data"), [])
+        self.assertFalse(client.org_id)
+
 
 @tagged("post_install", "-at_install")
 class TestWebhookHttp(HttpCase):

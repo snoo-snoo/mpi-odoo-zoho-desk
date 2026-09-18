@@ -39,8 +39,8 @@ class MpiZohoSync(models.AbstractModel):
         cutoff = None
         if backfill and connection.backfill_mode == "lookback":
             cutoff = fields.Datetime.now() - timedelta(days=connection.backfill_lookback_days or 90)
-        start = 0
-        page_size = 100
+        start = 1
+        page_size = 50
         while True:
             page = client.list_tickets(limit=page_size, **{"from": start, "sortBy": "modifiedTime"})
             tickets = page.get("data") or []

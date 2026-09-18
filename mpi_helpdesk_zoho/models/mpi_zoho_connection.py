@@ -145,7 +145,7 @@ class MpiZohoConnection(models.Model):
     def _token_client(self, transport=None):
         self.ensure_one()
         return DeskClient(
-            org_id=self.desk_org_id or "",
+            org_id=(self.desk_org_id or "").strip(),
             dc=self.desk_dc,
             accounts_dc=self.accounts_dc or self.desk_dc,
             client_id=self.client_id,
@@ -185,12 +185,21 @@ class MpiZohoConnection(models.Model):
             )
         return self._token_client(transport=transport)
 
+    def _probe_tickets(self, client):
+        try:
+            return client.list_tickets(**{"from": 1, "limit": 1})
+        except DeskClientError as exc:
+            if "OAUTH_ORG_MISMATCH" not in str(exc) or not client.org_id:
+                raise
+            client.org_id = ""
+            return client.list_tickets(**{"from": 1, "limit": 1})
+
     def action_test_connection(self):
         self.ensure_one()
         first_verify = self.state != "verified"
         try:
             client = self._make_client()
-            client.list_tickets(limit=1)
+            self._probe_tickets(client)
         except DeskClientError as exc:
             self.write({"state": "error", "last_error": str(exc)})
             raise UserError(_("Desk refused the Connection: %s") % exc) from exc

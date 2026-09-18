@@ -36,10 +36,12 @@ class DeskClient:
         self._access_token = None
 
     def _headers(self, token):
-        return {
+        headers = {
             "Authorization": "Zoho-oauthtoken %s" % token,
-            "orgId": str(self.org_id),
         }
+        if self.org_id:
+            headers["orgId"] = str(self.org_id).strip()
+        return headers
 
     def _request(self, method, url, *, headers=None, json_body=None, params=None, data=None, files=None):
         return self.transport.request(
@@ -124,12 +126,18 @@ class DeskClient:
                 headers.update(extra)
             response = self._request(method, url, headers=headers, **kwargs)
         if response.get("status_code", 200) >= 400:
-            raise DeskClientError(
-                "Desk API %s %s failed" % (method, path),
-                response.get("status_code"),
-                response,
-            )
+            self._raise_api_error(method, path, response)
         return response.get("json") or {}
+
+    def _raise_api_error(self, method, path, response):
+        payload = self._token_payload(response)
+        code = payload.get("errorCode") or payload.get("error") or ""
+        detail = payload.get("message") or payload.get("error_description") or ""
+        extra = " ".join(part for part in (code, detail) if part)
+        message = "Desk API %s %s failed" % (method, path)
+        if extra:
+            message = "%s: %s" % (message, extra)
+        raise DeskClientError(message, response.get("status_code"), response)
 
     def list_tickets(self, **params):
         return self._authed("GET", "/tickets", params=params)
