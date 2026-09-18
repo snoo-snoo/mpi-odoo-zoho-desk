@@ -77,17 +77,17 @@ class HelpdeskTicket(models.Model):
                 )
         return super().unlink()
 
-    @api.returns("mail.message", lambda value: value.id)
-    def message_post(self, **kwargs):
-        message = super().message_post(**kwargs)
+    def _message_post_after_hook(self, message, msg_values):
+        result = super()._message_post_after_hook(message, msg_values)
         if self.env.context.get("mpi_zoho_skip_outbox"):
-            return message
+            return result
         subtype = message.subtype_id
         internal = bool(subtype and subtype.internal)
         visibility = "internal" if internal else "public"
-        if message.message_type in ("comment", "email"):
+        message_type = msg_values.get("message_type") or message.message_type
+        if message_type in ("comment", "email"):
             self._mpi_zoho_queue(
                 "add_comment",
                 {"message_id": message.id, "visibility": visibility, "body": message.body},
             )
-        return message
+        return result
