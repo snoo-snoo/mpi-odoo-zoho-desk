@@ -1,7 +1,7 @@
 # Part of mpi_helpdesk_zoho. See LICENSE file for full copyright and licensing details.
 {
     "name": "MPI Helpdesk Zoho Desk Connector",
-    "version": "19.0.1.2.5",
+    "version": "19.0.1.2.6",
     "author": "Michael Plöckinger, MPI GmbH",
     "website": "https://mpi-erp.at",
     "license": "OPL-1",

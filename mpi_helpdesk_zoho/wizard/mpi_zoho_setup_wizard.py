@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from ..lib.desk_client import DeskClientError
+from ..lib.desk_statuses import status_values_from_fields
 
 
 class MpiZohoSetupWizard(models.TransientModel):
@@ -145,21 +146,7 @@ class MpiZohoSetupWizard(models.TransientModel):
         self.department_line_ids = [(5, 0, 0)] + lines
 
     def _status_values_from_fields(self, org_fields):
-        for field in org_fields:
-            api_name = (field.get("apiName") or field.get("name") or "").lower()
-            if api_name != "status":
-                continue
-            allowed = field.get("allowedValues") or field.get("pickListValues") or []
-            values = []
-            for entry in allowed:
-                if isinstance(entry, dict):
-                    value = entry.get("value") or entry.get("name") or entry.get("id")
-                else:
-                    value = entry
-                if value:
-                    values.append(str(value))
-            return values
-        return []
+        return status_values_from_fields(org_fields)
 
     def _load_status_lines(self, org_fields):
         self.ensure_one()
