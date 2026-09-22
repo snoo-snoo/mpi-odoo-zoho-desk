@@ -214,7 +214,12 @@ class DeskClient:
         except DeskClientError as exc:
             if not self._is_forbidden(exc):
                 raise
+        try:
             return self.search_ticket_tags(department_id=department_id, **params)
+        except DeskClientError as exc:
+            if self._is_forbidden(exc):
+                return []
+            raise
 
     @staticmethod
     def _is_forbidden(exc):
