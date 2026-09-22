@@ -65,7 +65,7 @@ A pairing on the Connection of a Helpdesk team that may take part in Ticket Sync
 _Avoid_: team filter, outbound rule
 
 **Department Map**:
-A pairing on the Connection of a Desk department whose tickets may take part in Ticket Sync. Unmapped departments stay in Desk.
+A pairing on the Connection of a Desk department to a Helpdesk team whose tickets may take part in Ticket Sync. Inbound tickets land on that team. Unmapped departments stay in Desk.
 _Avoid_: department filter, inbound rule
 
 **Tag Map**:

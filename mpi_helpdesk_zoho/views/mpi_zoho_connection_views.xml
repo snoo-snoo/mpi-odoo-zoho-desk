@@ -77,6 +77,7 @@
                                 <list editable="bottom">
                                     <field name="desk_department_id"/>
                                     <field name="desk_department_name"/>
+                                    <field name="team_id"/>
                                 </list>
                             </field>
                         </page>

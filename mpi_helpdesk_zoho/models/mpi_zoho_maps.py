@@ -48,6 +48,11 @@ class MpiZohoDepartmentMap(models.Model):
     )
     desk_department_id = fields.Char(required=True)
     desk_department_name = fields.Char()
+    team_id = fields.Many2one(
+        "helpdesk.team",
+        ondelete="set null",
+        help="Helpdesk team that receives inbound tickets from this department.",
+    )
 
 
 class MpiZohoTagMap(models.Model):

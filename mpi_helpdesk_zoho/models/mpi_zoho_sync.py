@@ -114,7 +114,8 @@ class MpiZohoSync(models.AbstractModel):
     def _create_helpdesk_ticket(self, connection, detail):
         partner = self._partner_for_desk(connection, detail)
         stage = self._stage_for_desk_status(connection, detail.get("status"))
-        team = connection.inbound_team_id
+        department_id = str(detail.get("departmentId") or detail.get("department", {}).get("id") or "")
+        team = self._inbound_team_for_department(connection, department_id)
         return self.env["helpdesk.ticket"].with_context(mpi_zoho_skip_outbox=True).create(
             {
                 "name": detail.get("subject") or "Desk ticket",
@@ -126,6 +127,15 @@ class MpiZohoSync(models.AbstractModel):
                 "priority": desk_to_helpdesk(detail.get("priority")) or "1",
             }
         )
+
+    def _inbound_team_for_department(self, connection, department_id):
+        if department_id:
+            mapped = connection.department_map_ids.filtered(
+                lambda row: row.desk_department_id == department_id and row.team_id
+            )[:1]
+            if mapped.team_id:
+                return mapped.team_id
+        return connection.inbound_team_id
 
     def _desk_to_helpdesk_values(self, connection, detail):
         odoo_fields = {}

@@ -142,6 +142,36 @@ class DeskClient:
     def list_tickets(self, **params):
         return self._authed("GET", "/tickets", params=params)
 
+    def _list_paginated(self, path, **params):
+        """Collect all pages from a Desk list endpoint. Yields each row."""
+        start = 0
+        page_size = int(params.pop("limit", 100) or 100)
+        while True:
+            page_params = dict(params)
+            page_params["limit"] = page_size
+            page_params["from"] = start
+            page = self._authed("GET", path, params=page_params)
+            rows = page.get("data") or []
+            for row in rows:
+                yield row
+            if len(rows) < page_size:
+                break
+            start += len(rows)
+
+    def list_departments(self, **params):
+        return list(self._list_paginated("/departments", **params))
+
+    def list_agents(self, **params):
+        return list(self._list_paginated("/agents", **params))
+
+    def list_organization_tags(self, **params):
+        return list(self._list_paginated("/organizationTags", **params))
+
+    def list_organization_fields(self, *, module="tickets", **params):
+        params = dict(params)
+        params.setdefault("module", module)
+        return list(self._list_paginated("/organizationFields", **params))
+
     def get_ticket(self, ticket_id):
         return self._authed("GET", "/tickets/%s" % ticket_id)
 
