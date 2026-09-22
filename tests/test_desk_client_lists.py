@@ -170,6 +170,8 @@ class TestDeskClientLists(unittest.TestCase):
         self.assertEqual(result[0]["apiName"], "status")
         field_calls = [c for c in client.transport.calls if "/organizationFields" in c["url"]]
         self.assertEqual(field_calls[0]["params"]["module"], "tickets")
+        self.assertNotIn("limit", field_calls[0]["params"])
+        self.assertNotIn("from", field_calls[0]["params"])
 
 
 if __name__ == "__main__":

@@ -231,7 +231,10 @@ class DeskClient:
     def list_organization_fields(self, *, module="tickets", **params):
         params = dict(params)
         params.setdefault("module", module)
-        return list(self._list_paginated("/organizationFields", **params))
+        params.pop("limit", None)
+        params.pop("from", None)
+        page = self._authed("GET", "/organizationFields", params=params)
+        return page.get("data") or []
 
     def get_ticket(self, ticket_id):
         return self._authed("GET", "/tickets/%s" % ticket_id)
