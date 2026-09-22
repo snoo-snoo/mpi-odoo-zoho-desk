@@ -164,8 +164,31 @@ class DeskClient:
     def list_agents(self, **params):
         return list(self._list_paginated("/agents", **params))
 
+    def list_ticket_tags(self, *, department_id, **params):
+        """List tags for one Desk department. Official path is /ticketTags (not /organizationTags)."""
+        params = dict(params)
+        params["departmentId"] = department_id
+        return list(self._list_paginated("/ticketTags", **params))
+
     def list_organization_tags(self, **params):
-        return list(self._list_paginated("/organizationTags", **params))
+        """Deprecated alias: prefers department_id, else aggregates over list_departments()."""
+        department_id = params.pop("department_id", None) or params.pop("departmentId", None)
+        if department_id:
+            return self.list_ticket_tags(department_id=department_id, **params)
+        tags = []
+        seen = set()
+        for department in self.list_departments():
+            desk_id = department.get("id")
+            if not desk_id:
+                continue
+            for row in self.list_ticket_tags(department_id=desk_id, **params):
+                name = row.get("name") or row.get("tagName") or ""
+                key = name or str(row.get("id") or "")
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                tags.append(row)
+        return tags
 
     def list_organization_fields(self, *, module="tickets", **params):
         params = dict(params)

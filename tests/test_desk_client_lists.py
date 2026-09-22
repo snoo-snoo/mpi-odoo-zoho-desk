@@ -66,9 +66,24 @@ class TestDeskClientLists(unittest.TestCase):
         self.assertEqual(result[0]["id"], "A1")
 
     def test_list_organization_tags(self):
-        client = self._client({"/organizationTags": [{"name": "vip"}]})
+        client = self._client(
+            {
+                "/departments": [{"id": "D1", "name": "Support"}],
+                "/ticketTags": [{"name": "vip", "id": "T1"}],
+            }
+        )
         result = client.list_organization_tags()
         self.assertEqual(result[0]["name"], "vip")
+        tag_calls = [c for c in client.transport.calls if "/ticketTags" in c["url"]]
+        self.assertEqual(len(tag_calls), 1)
+        self.assertEqual(tag_calls[0]["params"]["departmentId"], "D1")
+
+    def test_list_ticket_tags_requires_department(self):
+        client = self._client({"/ticketTags": [{"name": "vip"}]})
+        result = client.list_ticket_tags(department_id="D9")
+        self.assertEqual(result[0]["name"], "vip")
+        tag_calls = [c for c in client.transport.calls if "/ticketTags" in c["url"]]
+        self.assertEqual(tag_calls[0]["params"]["departmentId"], "D9")
 
     def test_list_organization_fields_passes_module(self):
         client = self._client(

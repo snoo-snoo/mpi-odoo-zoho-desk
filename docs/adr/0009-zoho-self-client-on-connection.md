@@ -6,10 +6,10 @@ Generate Code on that self-client must request these scopes (comma-separated, no
 
 `Desk.tickets.READ,Desk.tickets.CREATE,Desk.tickets.UPDATE,Desk.basic.READ,Desk.fields.READ,Desk.settings.READ,Desk.webhooks.CREATE`
 
-- `Desk.tickets.READ` / `CREATE` / `UPDATE` — Ticket Sync (tickets, threads, attachments). Close via update; do not request `DELETE` or `ALL`.
+- `Desk.tickets.READ` / `CREATE` / `UPDATE` — Ticket Sync (tickets, threads, attachments) and listing ticket tags for the Tag Map. Close via update; do not request `DELETE` or `ALL`.
 - `Desk.basic.READ` — departments, agents, organization for maps and setup.
 - `Desk.fields.READ` — ticket organization fields (Status Map, custom field map).
-- `Desk.settings.READ` — organization tags (Tag Map) and settings the setup wizard reads.
+- `Desk.settings.READ` — optional Desk settings reads during setup; not required for ticket tags (`GET /ticketTags` uses `Desk.tickets.READ`).
 - `Desk.webhooks.CREATE` — Register webhook. Pasting the webhook URL in Desk still works without it.
 
 `Desk.contacts.*` is not requested: the Ticket payload carries contact and account; Partners are matched in Odoo.
