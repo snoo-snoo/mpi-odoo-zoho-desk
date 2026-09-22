@@ -22,6 +22,8 @@
             <form>
                 <header>
                     <button name="action_test_connection" type="object" string="Test Connection" class="btn-primary"/>
+                    <button name="action_configure_sync" type="object" string="Configure Ticket Sync"
+                            invisible="state != 'verified'"/>
                     <button name="action_register_webhook" type="object" string="Register webhook"/>
                     <button name="action_backfill" type="object" string="Backfill"/>
                     <button name="action_catch_up" type="object" string="Catch up now"/>
@@ -43,6 +45,7 @@
                     <group string="Zoho self-client" groups="mpi_helpdesk_zoho.group_zoho_admin">
                         <field name="client_id"/>
                         <field name="client_secret" password="True"/>
+                        <field name="self_client_scopes" readonly="1"/>
                         <field name="authorization_code"/>
                         <field name="refresh_token" password="True" invisible="1"/>
                     </group>

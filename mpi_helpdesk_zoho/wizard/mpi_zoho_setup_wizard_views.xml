@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_mpi_zoho_setup_wizard_form" model="ir.ui.view">
+        <field name="name">mpi.zoho.desk.setup.wizard.form</field>
+        <field name="model">mpi.zoho.desk.setup.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Configure Ticket Sync">
+                <field name="connection_id" invisible="1"/>
+                <field name="state" invisible="1"/>
+                <div class="oe_title" invisible="state != 'departments'">
+                    <h1>Departments</h1>
+                    <p>Choose which Desk departments sync and pair each with a Helpdesk team.</p>
+                </div>
+                <div class="oe_title" invisible="state != 'statuses'">
+                    <h1>Statuses</h1>
+                    <p>Map Desk statuses to Helpdesk stages.</p>
+                </div>
+                <div class="oe_title" invisible="state != 'agents'">
+                    <h1>Agents</h1>
+                    <p>Map Desk agents to Odoo users. Unmapped agents leave the assignee empty.</p>
+                </div>
+                <div class="oe_title" invisible="state != 'tags'">
+                    <h1>Tags</h1>
+                    <p>Map Desk tags to Helpdesk tags. Tags sync only when mapped.</p>
+                </div>
+                <div class="oe_title" invisible="state != 'fields'">
+                    <h1>Custom fields</h1>
+                    <p>Map Desk custom fields to existing Helpdesk ticket fields.</p>
+                </div>
+                <div class="oe_title" invisible="state != 'backfill'">
+                    <h1>Backfill</h1>
+                    <p>Apply the maps, then optionally pull existing Desk tickets.</p>
+                </div>
+                <group invisible="state != 'departments'">
+                    <field name="department_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sync"/>
+                            <field name="desk_department_name"/>
+                            <field name="desk_department_id" optional="hide"/>
+                            <field name="team_id"/>
+                            <field name="create_team"/>
+                        </list>
+                    </field>
+                </group>
+                <group invisible="state != 'statuses'">
+                    <field name="status_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sync"/>
+                            <field name="desk_status"/>
+                            <field name="stage_id"/>
+                            <field name="create_stage"/>
+                        </list>
+                    </field>
+                </group>
+                <group invisible="state != 'agents'">
+                    <field name="agent_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sync"/>
+                            <field name="desk_agent_name"/>
+                            <field name="desk_agent_email"/>
+                            <field name="desk_agent_id" optional="hide"/>
+                            <field name="user_id"/>
+                        </list>
+                    </field>
+                </group>
+                <group invisible="state != 'tags'">
+                    <field name="tag_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sync"/>
+                            <field name="desk_tag"/>
+                            <field name="tag_id"/>
+                            <field name="create_tag"/>
+                        </list>
+                    </field>
+                </group>
+                <group invisible="state != 'fields'">
+                    <field name="field_line_ids" nolabel="1">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sync"/>
+                            <field name="desk_field_label"/>
+                            <field name="desk_field"/>
+                            <field name="helpdesk_field"/>
+                        </list>
+                    </field>
+                </group>
+                <group invisible="state != 'backfill'">
+                    <field name="backfill_mode"/>
+                    <field name="backfill_lookback_days"
+                           invisible="backfill_mode != 'lookback'"/>
+                    <field name="run_backfill"/>
+                </group>
+                <footer>
+                    <button name="action_back" type="object" string="Back"
+                            invisible="state == 'departments'" class="btn-secondary"/>
+                    <button name="action_next" type="object" string="Next"
+                            invisible="state == 'backfill'" class="btn-primary"/>
+                    <button name="action_apply" type="object" string="Apply"
+                            invisible="state != 'backfill'" class="btn-primary"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

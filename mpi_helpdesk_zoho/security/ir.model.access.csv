@@ -12,3 +12,9 @@ access_ticket_map_admin,mpi.zoho.desk.ticket.map.admin,model_mpi_zoho_desk_ticke
 access_comment_map_admin,mpi.zoho.desk.comment.map.admin,model_mpi_zoho_desk_comment_map,group_zoho_admin,1,1,1,1
 access_attachment_map_admin,mpi.zoho.desk.attachment.map.admin,model_mpi_zoho_desk_attachment_map,group_zoho_admin,1,1,1,1
 access_outbox_admin,mpi.zoho.desk.outbox.admin,model_mpi_zoho_desk_outbox,group_zoho_admin,1,1,1,1
+access_setup_wizard_admin,mpi.zoho.desk.setup.wizard.admin,model_mpi_zoho_desk_setup_wizard,group_zoho_admin,1,1,1,1
+access_setup_department_line_admin,mpi.zoho.desk.setup.department.line.admin,model_mpi_zoho_desk_setup_department_line,group_zoho_admin,1,1,1,1
+access_setup_status_line_admin,mpi.zoho.desk.setup.status.line.admin,model_mpi_zoho_desk_setup_status_line,group_zoho_admin,1,1,1,1
+access_setup_agent_line_admin,mpi.zoho.desk.setup.agent.line.admin,model_mpi_zoho_desk_setup_agent_line,group_zoho_admin,1,1,1,1
+access_setup_tag_line_admin,mpi.zoho.desk.setup.tag.line.admin,model_mpi_zoho_desk_setup_tag_line,group_zoho_admin,1,1,1,1
+access_setup_field_line_admin,mpi.zoho.desk.setup.field.line.admin,model_mpi_zoho_desk_setup_field_line,group_zoho_admin,1,1,1,1

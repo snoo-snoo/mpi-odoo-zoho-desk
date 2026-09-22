@@ -205,8 +205,24 @@ class MpiZohoConnection(models.Model):
             raise UserError(_("Desk refused the Connection: %s") % exc) from exc
         self.write({"state": "verified", "last_error": False})
         if first_verify:
-            self._sync_from_desk(backfill=True)
+            return self.action_configure_sync()
         return True
+
+    def action_configure_sync(self):
+        self.ensure_one()
+        if self.state != "verified":
+            raise UserError(_("Verify the Connection before configuring Ticket Sync."))
+        wizard = self.env["mpi.zoho.desk.setup.wizard"].create(
+            {"connection_id": self.id}
+        )
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Configure Ticket Sync"),
+            "res_model": "mpi.zoho.desk.setup.wizard",
+            "res_id": wizard.id,
+            "view_mode": "form",
+            "target": "new",
+        }
 
     def action_register_webhook(self):
         self.ensure_one()

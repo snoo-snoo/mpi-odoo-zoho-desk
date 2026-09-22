@@ -111,25 +111,21 @@ class MpiZohoSetupWizard(models.TransientModel):
                     ],
                     limit=1,
                 )
+            sync = bool(mapped) if existing else False
             lines.append(
                 (
                     0,
                     0,
                     {
-                        "sync": bool(mapped),
+                        "sync": sync,
                         "desk_department_id": desk_id,
                         "desk_department_name": name,
                         "team_id": team.id if team else False,
-                        "create_team": not bool(team) and bool(mapped or True),
+                        "create_team": sync and not team,
                     },
                 )
             )
-        # create_team default True only when selected — fix: only when sync and no team
-        fixed = []
-        for _cmd, _id, vals in lines:
-            vals["create_team"] = bool(vals.get("sync")) and not vals.get("team_id")
-            fixed.append((0, 0, vals))
-        self.department_line_ids = [(5, 0, 0)] + fixed
+        self.department_line_ids = [(5, 0, 0)] + lines
 
     def _status_values_from_fields(self, org_fields):
         for field in org_fields:
@@ -163,28 +159,20 @@ class MpiZohoSetupWizard(models.TransientModel):
                 stage = self.env["helpdesk.stage"].search(
                     [("name", "=", status)], limit=1
                 )
+            sync = bool(mapped) if existing else True
             lines.append(
                 (
                     0,
                     0,
                     {
-                        "sync": bool(mapped) or True,
+                        "sync": sync,
                         "desk_status": status,
                         "stage_id": stage.id if stage else False,
-                        "create_stage": not bool(stage),
+                        "create_stage": sync and not stage,
                     },
                 )
             )
-        # Prefer existing maps as selected; newly discovered statuses default selected
-        fixed = []
-        for _cmd, _id, vals in lines:
-            mapped = existing.get(vals["desk_status"])
-            vals["sync"] = True if mapped or not existing else bool(mapped)
-            if not existing:
-                vals["sync"] = True
-            vals["create_stage"] = bool(vals.get("sync")) and not vals.get("stage_id")
-            fixed.append((0, 0, vals))
-        self.status_line_ids = [(5, 0, 0)] + fixed
+        self.status_line_ids = [(5, 0, 0)] + lines
 
     def _load_agent_lines(self, agents):
         self.ensure_one()
@@ -259,15 +247,11 @@ class MpiZohoSetupWizard(models.TransientModel):
                         "sync": bool(mapped),
                         "desk_tag": name,
                         "tag_id": tag.id if tag else False,
-                        "create_tag": not bool(tag) and bool(mapped),
+                        "create_tag": bool(mapped) and not tag,
                     },
                 )
             )
-        fixed = []
-        for _cmd, _id, vals in lines:
-            vals["create_tag"] = bool(vals.get("sync")) and not vals.get("tag_id")
-            fixed.append((0, 0, vals))
-        self.tag_line_ids = [(5, 0, 0)] + fixed
+        self.tag_line_ids = [(5, 0, 0)] + lines
 
     def _custom_fields_from_org(self, org_fields):
         builtins = {

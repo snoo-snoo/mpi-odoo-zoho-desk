@@ -412,3 +412,144 @@ msgstr ""
 "%s\n"
 "\n"
 "%s"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model,name:mpi_helpdesk_zoho.model_mpi_zoho_desk_setup_wizard
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_connection_form
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Configure Ticket Sync"
+msgstr "Ticket-Sync konfigurieren"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_department_map__team_id
+msgid "Helpdesk team that receives inbound tickets from this department."
+msgstr "Helpdesk-Team, das eingehende Tickets aus dieser Abteilung erhält."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Departments"
+msgstr "Abteilungen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Choose which Desk departments sync and pair each with a Helpdesk team."
+msgstr ""
+"Wählen Sie, welche Desk-Abteilungen synchronisiert werden, und ordnen Sie "
+"jeder ein Helpdesk-Team zu."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Statuses"
+msgstr "Status"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Map Desk statuses to Helpdesk stages."
+msgstr "Desk-Status den Helpdesk-Stufen zuordnen."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Agents"
+msgstr "Agenten"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Map Desk agents to Odoo users. Unmapped agents leave the assignee empty."
+msgstr ""
+"Desk-Agenten Odoo-Benutzern zuordnen. Nicht zugeordnete Agenten lassen den "
+"Zuständigen leer."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Tags"
+msgstr "Tags"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Map Desk tags to Helpdesk tags. Tags sync only when mapped."
+msgstr "Desk-Tags Helpdesk-Tags zuordnen. Tags synchronisieren nur bei Zuordnung."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Map Desk custom fields to existing Helpdesk ticket fields."
+msgstr ""
+"Desk-benutzerdefinierte Felder bestehenden Helpdesk-Ticketfeldern zuordnen."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Apply the maps, then optionally pull existing Desk tickets."
+msgstr "Zuordnungen übernehmen und optional bestehende Desk-Tickets abrufen."
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Back"
+msgstr "Zurück"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Next"
+msgstr "Weiter"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Apply"
+msgstr "Übernehmen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_setup_wizard__run_backfill
+msgid "Run Backfill after apply"
+msgstr "Backfill nach Übernehmen starten"
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/models/mpi_zoho_connection.py:0
+msgid "Verify the Connection before configuring Ticket Sync."
+msgstr "Verbindung prüfen, bevor der Ticket-Sync konfiguriert wird."
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/wizard/mpi_zoho_setup_wizard.py:0
+#, python-format
+msgid "Could not load Desk metadata: %s"
+msgstr "Desk-Metadaten konnten nicht geladen werden: %s"
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/wizard/mpi_zoho_setup_wizard.py:0
+#, python-format
+msgid "Department %s needs a Helpdesk team or Create team checked."
+msgstr "Abteilung %s braucht ein Helpdesk-Team oder „Team anlegen“."
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/wizard/mpi_zoho_setup_wizard.py:0
+#, python-format
+msgid "Status %s needs a Helpdesk stage or Create stage checked."
+msgstr "Status %s braucht eine Helpdesk-Stufe oder „Stufe anlegen“."
+
+#. module: mpi_helpdesk_zoho
+#. odoo-python
+#: code:addons/mpi_helpdesk_zoho/wizard/mpi_zoho_setup_wizard.py:0
+#, python-format
+msgid "Tag %s needs a Helpdesk tag or Create tag checked."
+msgstr "Tag %s braucht ein Helpdesk-Tag oder „Tag anlegen“."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_setup_department_line__create_team
+msgid "Create team"
+msgstr "Team anlegen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_setup_status_line__create_stage
+msgid "Create stage"
+msgstr "Stufe anlegen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_setup_tag_line__create_tag
+msgid "Create tag"
+msgstr "Tag anlegen"

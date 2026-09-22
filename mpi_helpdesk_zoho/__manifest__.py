@@ -32,6 +32,7 @@ Keeps Helpdesk Tickets aligned with Zoho Desk. One Connection per company.
         "views/helpdesk_ticket_views.xml",
         "views/res_config_settings_views.xml",
         "views/mpi_helpdesk_zoho_menus.xml",
+        "wizard/mpi_zoho_setup_wizard_views.xml",
     ],
     "images": [
         "static/description/icon.png",
