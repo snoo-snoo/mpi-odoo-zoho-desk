@@ -499,6 +499,16 @@ msgstr "Zurück"
 
 #. module: mpi_helpdesk_zoho
 #: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Select all"
+msgstr "Alle auswählen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
+msgid "Deselect all"
+msgstr "Alle abwählen"
+
+#. module: mpi_helpdesk_zoho
+#: model_terms:ir.ui.view,arch_db:mpi_helpdesk_zoho.view_mpi_zoho_setup_wizard_form
 msgid "Next"
 msgstr "Weiter"
 

@@ -358,6 +358,31 @@ class MpiZohoSetupWizard(models.TransientModel):
             )
         self.field_line_ids = [(5, 0, 0)] + lines
 
+    _SYNC_LINE_FIELDS = {
+        "departments": "department_line_ids",
+        "statuses": "status_line_ids",
+        "agents": "agent_line_ids",
+        "tags": "tag_line_ids",
+        "fields": "field_line_ids",
+    }
+
+    def _current_sync_lines(self):
+        self.ensure_one()
+        field_name = self._SYNC_LINE_FIELDS.get(self.state)
+        if not field_name:
+            return self.env["mpi.zoho.desk.setup.department.line"]
+        return self[field_name]
+
+    def action_select_all_sync(self):
+        self.ensure_one()
+        self._current_sync_lines().write({"sync": True})
+        return self._reopen()
+
+    def action_deselect_all_sync(self):
+        self.ensure_one()
+        self._current_sync_lines().write({"sync": False})
+        return self._reopen()
+
     def action_next(self):
         self.ensure_one()
         order = ["departments", "statuses", "agents", "tags", "fields", "backfill"]

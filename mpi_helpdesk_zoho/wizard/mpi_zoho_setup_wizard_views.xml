@@ -94,6 +94,10 @@
                     <field name="run_backfill"/>
                 </group>
                 <footer>
+                    <button name="action_select_all_sync" type="object" string="Select all"
+                            invisible="state == 'backfill'" class="btn-secondary"/>
+                    <button name="action_deselect_all_sync" type="object" string="Deselect all"
+                            invisible="state == 'backfill'" class="btn-secondary"/>
                     <button name="action_back" type="object" string="Back"
                             invisible="state == 'departments'" class="btn-secondary"/>
                     <button name="action_next" type="object" string="Next"

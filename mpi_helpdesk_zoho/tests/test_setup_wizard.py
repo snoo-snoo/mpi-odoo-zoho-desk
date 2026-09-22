@@ -161,3 +161,19 @@ class TestSetupWizard(TransactionCase):
         self.assertEqual(connection.state, "verified")
         self.assertEqual(action["res_model"], "mpi.zoho.desk.setup.wizard")
         self.assertEqual(sync_calls, [])
+
+    def test_select_and_deselect_all_sync_on_current_step(self):
+        connection = self._connection()
+        with patch.object(
+            type(connection), "_make_client", return_value=FakeDeskClient()
+        ):
+            wizard = self.env["mpi.zoho.desk.setup.wizard"].create(
+                {"connection_id": connection.id}
+            )
+        wizard.action_select_all_sync()
+        self.assertTrue(all(wizard.department_line_ids.mapped("sync")))
+        wizard.action_deselect_all_sync()
+        self.assertFalse(any(wizard.department_line_ids.mapped("sync")))
+        wizard.state = "statuses"
+        wizard.action_select_all_sync()
+        self.assertTrue(all(wizard.status_line_ids.mapped("sync")))
