@@ -10,6 +10,7 @@ from odoo.exceptions import UserError
 from ..lib.attachment_policy import DEFAULT_MAX_BYTES, DEFAULT_MIME_ALLOW
 from ..lib.desk_client import DeskClient, DeskClientError
 from ..lib.requests_transport import RequestsTransport
+from ..lib.self_client import SELF_CLIENT_SCOPE_CSV
 
 _logger = logging.getLogger(__name__)
 
@@ -59,10 +60,16 @@ class MpiZohoConnection(models.Model):
         string="Self-Client Code",
         groups="mpi_helpdesk_zoho.group_zoho_admin",
         copy=False,
-        help="Paste the code from Zoho API Console (Generate Code). "
-        "It is valid for 10 minutes. Test Connection exchanges it.",
+        help="Paste the code from the Zoho API console here. "
+        "It is valid for 10 minutes. The required permissions are listed below. "
+        "Then click Test Connection.",
     )
     refresh_token = fields.Char(groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False)
+    self_client_scopes = fields.Char(
+        compute="_compute_self_client_scopes",
+        string="Required permissions",
+        help="Enter this list when you create the code in the Zoho API console.",
+    )
 
     attachment_direction = fields.Selection(
         [
@@ -121,6 +128,11 @@ class MpiZohoConnection(models.Model):
     @api.model
     def _selection_desk_dc(self):
         return self._fields["desk_dc"].selection
+
+    @api.depends()
+    def _compute_self_client_scopes(self):
+        for connection in self:
+            connection.self_client_scopes = SELF_CLIENT_SCOPE_CSV
 
     @api.depends("webhook_token")
     def _compute_webhook_url(self):

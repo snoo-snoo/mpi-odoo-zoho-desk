@@ -358,11 +358,23 @@ msgstr "Self-Client-Code"
 #. module: mpi_helpdesk_zoho
 #: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__authorization_code
 msgid ""
-"Paste the code from Zoho API Console (Generate Code). It is valid for 10 "
-"minutes. Test Connection exchanges it."
+"Paste the code from the Zoho API console here. It is valid for 10 minutes. "
+"The required permissions are listed below. Then click Test Connection."
 msgstr ""
-"Code aus der Zoho API Console (Generate Code) einfügen. 10 Minuten gültig. "
-"Verbindung testen tauscht ihn ein."
+"Den Code aus der Zoho API-Konsole hier einfügen. Er gilt 10 Minuten. Die "
+"nötigen Berechtigungen stehen darunter. Danach auf Verbindung testen "
+"klicken."
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,field_description:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__self_client_scopes
+msgid "Required permissions"
+msgstr "Erforderliche Berechtigungen"
+
+#. module: mpi_helpdesk_zoho
+#: model:ir.model.fields,help:mpi_helpdesk_zoho.field_mpi_zoho_desk_connection__self_client_scopes
+msgid "Enter this list when you create the code in the Zoho API console."
+msgstr ""
+"Diese Liste in der Zoho API-Konsole eintragen, wenn Sie den Code erzeugen."
 
 #. module: mpi_helpdesk_zoho
 #. odoo-python
