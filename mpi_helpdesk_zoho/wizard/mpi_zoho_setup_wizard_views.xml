@@ -23,6 +23,10 @@
                     <h1>Tags</h1>
                     <p>Map Desk tags to Helpdesk tags. Tags sync only when mapped.</p>
                 </div>
+                <div class="alert alert-warning" role="alert"
+                     invisible="state != 'tags' or not load_warning">
+                    <field name="load_warning" nolabel="1" readonly="1"/>
+                </div>
                 <div class="oe_title" invisible="state != 'fields'">
                     <h1>Custom fields</h1>
                     <p>Map Desk custom fields to existing Helpdesk ticket fields.</p>

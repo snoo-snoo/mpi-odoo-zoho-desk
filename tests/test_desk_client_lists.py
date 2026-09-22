@@ -12,8 +12,9 @@ from mpi_helpdesk_zoho.lib.desk_client import DeskClient
 
 
 class FakeTransport:
-    def __init__(self, pages_by_path):
+    def __init__(self, pages_by_path, status_by_path=None):
         self.pages_by_path = pages_by_path
+        self.status_by_path = status_by_path or {}
         self.calls = []
 
     def request(self, method, url, *, headers=None, json_body=None, params=None, data=None, files=None):
@@ -28,6 +29,13 @@ class FakeTransport:
         if "/oauth/v2/token" in url:
             return {"status_code": 200, "json": {"access_token": "tok"}, "content": b""}
         path = url.split("/api/v1", 1)[-1].split("?", 1)[0]
+        status = self.status_by_path.get(path, 200)
+        if status >= 400:
+            return {
+                "status_code": status,
+                "json": {"errorCode": "FORBIDDEN", "message": "You are not authorized to access this resource."},
+                "content": b"",
+            }
         pages = self.pages_by_path.get(path, [])
         start = int((params or {}).get("from") or 0)
         limit = int((params or {}).get("limit") or 100)
@@ -36,14 +44,14 @@ class FakeTransport:
 
 
 class TestDeskClientLists(unittest.TestCase):
-    def _client(self, pages_by_path):
+    def _client(self, pages_by_path, status_by_path=None):
         return DeskClient(
             org_id="1",
             dc="eu",
             client_id="c",
             client_secret="s",
             refresh_token="r",
-            transport=FakeTransport(pages_by_path),
+            transport=FakeTransport(pages_by_path, status_by_path=status_by_path),
         )
 
     def test_list_departments_paginates(self):
@@ -84,6 +92,71 @@ class TestDeskClientLists(unittest.TestCase):
         self.assertEqual(result[0]["name"], "vip")
         tag_calls = [c for c in client.transport.calls if "/ticketTags" in c["url"]]
         self.assertEqual(tag_calls[0]["params"]["departmentId"], "D9")
+
+    def test_list_organization_tags_skips_forbidden_departments(self):
+        client = self._client(
+            {
+                "/departments": [
+                    {"id": "D1", "name": "Blocked"},
+                    {"id": "D2", "name": "Ok"},
+                ],
+                "/ticketTags": [{"name": "vip", "id": "T1"}],
+            },
+            status_by_path={},
+        )
+
+        def request(method, url, *, headers=None, json_body=None, params=None, data=None, files=None):
+            client.transport.calls.append(
+                {"method": method, "url": url, "params": params or {}, "data": data}
+            )
+            if "/oauth/v2/token" in url:
+                return {"status_code": 200, "json": {"access_token": "tok"}, "content": b""}
+            path = url.split("/api/v1", 1)[-1].split("?", 1)[0]
+            if path == "/departments":
+                return {
+                    "status_code": 200,
+                    "json": {
+                        "data": [
+                            {"id": "D1", "name": "Blocked"},
+                            {"id": "D2", "name": "Ok"},
+                        ]
+                    },
+                    "content": b"",
+                }
+            if path == "/ticketTags":
+                if str((params or {}).get("departmentId")) == "D1":
+                    return {
+                        "status_code": 403,
+                        "json": {
+                            "errorCode": "FORBIDDEN",
+                            "message": "You are not authorized to access this resource.",
+                        },
+                        "content": b"",
+                    }
+                return {
+                    "status_code": 200,
+                    "json": {"data": [{"name": "vip", "id": "T1"}]},
+                    "content": b"",
+                }
+            if path == "/tags/search":
+                return {
+                    "status_code": 403,
+                    "json": {"errorCode": "FORBIDDEN", "message": "no"},
+                    "content": b"",
+                }
+            return {"status_code": 200, "json": {"data": []}, "content": b""}
+
+        client.transport.request = request
+        result = client.list_organization_tags()
+        self.assertEqual([r["name"] for r in result], ["vip"])
+
+    def test_list_organization_tags_all_forbidden_returns_empty(self):
+        client = self._client(
+            {"/departments": [{"id": "D1", "name": "Blocked"}]},
+            status_by_path={"/ticketTags": 403, "/tags/search": 403},
+        )
+        result = client.list_organization_tags()
+        self.assertEqual(result, [])
 
     def test_list_organization_fields_passes_module(self):
         client = self._client(

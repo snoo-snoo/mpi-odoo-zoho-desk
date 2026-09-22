@@ -40,6 +40,7 @@ class MpiZohoSetupWizard(models.TransientModel):
     )
     backfill_lookback_days = fields.Integer(default=90)
     run_backfill = fields.Boolean(default=True, string="Run Backfill after apply")
+    load_warning = fields.Text(readonly=True)
 
     @api.model
     def default_get(self, fields_list):
@@ -69,20 +70,36 @@ class MpiZohoSetupWizard(models.TransientModel):
     def _load_from_desk(self):
         self.ensure_one()
         connection = self.connection_id
+        warnings = []
         try:
             client = connection._make_client()
             departments = client.list_departments()
             agents = client.list_agents()
-            tags = client.list_organization_tags()
             org_fields = client.list_organization_fields(module="tickets")
         except DeskClientError as exc:
             raise UserError(_("Could not load Desk metadata: %s") % exc) from exc
+
+        try:
+            tags = client.list_organization_tags()
+        except DeskClientError as exc:
+            tags = []
+            warnings.append(_("Desk tags could not be loaded: %s") % exc)
+        else:
+            if not tags and not connection.tag_map_ids:
+                warnings.append(
+                    _(
+                        "Desk returned no tags (or the self-client is not allowed to list "
+                        "them). Re-generate the Self-Client Code with Desk.tickets.READ, "
+                        "or map tags later on the Connection."
+                    )
+                )
 
         self._load_department_lines(departments)
         self._load_status_lines(org_fields)
         self._load_agent_lines(agents)
         self._load_tag_lines(tags)
         self._load_field_lines(org_fields)
+        self.load_warning = "\n".join(warnings) if warnings else False
 
     def _load_department_lines(self, departments):
         self.ensure_one()
@@ -231,10 +248,12 @@ class MpiZohoSetupWizard(models.TransientModel):
         connection = self.connection_id
         existing = {row.desk_tag: row for row in connection.tag_map_ids}
         lines = []
+        seen = set()
         for row in tags:
             name = row.get("name") or row.get("tagName") or ""
             if not name:
                 continue
+            seen.add(name)
             mapped = existing.get(name)
             tag = mapped.tag_id if mapped else False
             if not tag:
@@ -248,6 +267,21 @@ class MpiZohoSetupWizard(models.TransientModel):
                         "desk_tag": name,
                         "tag_id": tag.id if tag else False,
                         "create_tag": bool(mapped) and not tag,
+                    },
+                )
+            )
+        for desk_tag, mapped in existing.items():
+            if desk_tag in seen:
+                continue
+            lines.append(
+                (
+                    0,
+                    0,
+                    {
+                        "sync": True,
+                        "desk_tag": desk_tag,
+                        "tag_id": mapped.tag_id.id if mapped.tag_id else False,
+                        "create_tag": False,
                     },
                 )
             )

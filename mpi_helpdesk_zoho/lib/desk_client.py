@@ -170,25 +170,58 @@ class DeskClient:
         params["departmentId"] = department_id
         return list(self._list_paginated("/ticketTags", **params))
 
+    def search_ticket_tags(self, *, department_id, search_val="", **params):
+        params = dict(params)
+        params["departmentId"] = department_id
+        if search_val:
+            params["searchVal"] = search_val
+        return list(self._list_paginated("/tags/search", **params))
+
     def list_organization_tags(self, **params):
-        """Deprecated alias: prefers department_id, else aggregates over list_departments()."""
+        """Aggregate tags across departments. Skips departments that return FORBIDDEN."""
         department_id = params.pop("department_id", None) or params.pop("departmentId", None)
         if department_id:
-            return self.list_ticket_tags(department_id=department_id, **params)
+            return self._list_tags_for_department(department_id, **params)
         tags = []
         seen = set()
+        last_error = None
         for department in self.list_departments():
             desk_id = department.get("id")
             if not desk_id:
                 continue
-            for row in self.list_ticket_tags(department_id=desk_id, **params):
+            try:
+                rows = self._list_tags_for_department(desk_id, **params)
+            except DeskClientError as exc:
+                last_error = exc
+                if self._is_forbidden(exc):
+                    continue
+                raise
+            for row in rows:
                 name = row.get("name") or row.get("tagName") or ""
                 key = name or str(row.get("id") or "")
                 if not key or key in seen:
                     continue
                 seen.add(key)
                 tags.append(row)
+        if not tags and last_error and self._is_forbidden(last_error):
+            # Token or agent profile cannot list tags; caller may continue without them.
+            return []
         return tags
+
+    def _list_tags_for_department(self, department_id, **params):
+        try:
+            return self.list_ticket_tags(department_id=department_id, **params)
+        except DeskClientError as exc:
+            if not self._is_forbidden(exc):
+                raise
+            return self.search_ticket_tags(department_id=department_id, **params)
+
+    @staticmethod
+    def _is_forbidden(exc):
+        if getattr(exc, "status_code", None) == 403:
+            return True
+        text = str(exc).upper()
+        return "FORBIDDEN" in text or "NOT AUTHORIZED" in text
 
     def list_organization_fields(self, *, module="tickets", **params):
         params = dict(params)
