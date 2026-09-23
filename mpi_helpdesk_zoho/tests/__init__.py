@@ -2,3 +2,4 @@
 
 from . import test_connection
 from . import test_setup_wizard
+from . import test_sync_pull_pacing

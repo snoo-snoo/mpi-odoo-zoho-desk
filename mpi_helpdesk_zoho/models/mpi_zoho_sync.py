@@ -12,6 +12,15 @@ from ..lib.echo import payload_hash, should_apply
 from ..lib.partner_match import resolve_partner
 from ..lib.priority import desk_to_helpdesk, helpdesk_to_desk
 from ..lib.source_removal import other_side_action
+from ..lib.sync_pull import (
+    CATCHUP_TICKET_CAP,
+    COMMIT_EVERY,
+    PAGE_SIZE,
+    defer_attachment_binaries,
+    list_ticket_params,
+    partner_cache_key,
+    should_sync_side_content,
+)
 from ..lib.sync_scope import allows_inbound
 from ..lib.ticket_fields import apply_desk_wins
 
@@ -39,10 +48,24 @@ class MpiZohoSync(models.AbstractModel):
         cutoff = None
         if backfill and connection.backfill_mode == "lookback":
             cutoff = fields.Datetime.now() - timedelta(days=connection.backfill_lookback_days or 90)
+        department_ids = sorted(connection._mapped_department_ids())
+        if not department_ids:
+            _logger.info(
+                "Ticket Sync pull skipped for Connection %s: no Department Map",
+                connection.id,
+            )
+            return
+        partner_cache = {}
         start = 1
-        page_size = 50
+        page_size = PAGE_SIZE
+        batch = 0
         while True:
-            page = client.list_tickets(limit=page_size, **{"from": start, "sortBy": "modifiedTime"})
+            params = list_ticket_params(
+                start=start,
+                page_size=page_size,
+                department_ids=department_ids,
+            )
+            page = client.list_tickets(**params)
             tickets = page.get("data") or []
             if not tickets:
                 break
@@ -50,16 +73,27 @@ class MpiZohoSync(models.AbstractModel):
                 if cutoff and row.get("closedTime") and self._parse_desk_dt(row.get("closedTime")) < cutoff:
                     continue
                 try:
-                    self._apply_desk_ticket(connection, client, row)
+                    self._apply_desk_ticket(
+                        connection,
+                        client,
+                        row,
+                        backfill=backfill,
+                        partner_cache=partner_cache,
+                    )
                 except Exception:
                     _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
-                if not self._cron_keep_going(1):
-                    return
+                batch += 1
+                if batch >= COMMIT_EVERY:
+                    if not self._cron_keep_going(batch):
+                        return
+                    batch = 0
             if len(tickets) < page_size:
                 break
             start += len(tickets)
-            if not backfill and start >= 300:
+            if not backfill and start > CATCHUP_TICKET_CAP:
                 break
+        if batch:
+            self._cron_keep_going(batch)
 
     def _parse_desk_dt(self, value):
         if not value:
@@ -69,7 +103,16 @@ class MpiZohoSync(models.AbstractModel):
         except Exception:
             return fields.Datetime.now()
 
-    def _apply_desk_ticket(self, connection, client, row):
+    def _apply_desk_ticket(
+        self,
+        connection,
+        client,
+        row,
+        *,
+        backfill=False,
+        force_side_content=False,
+        partner_cache=None,
+    ):
         department_id = str(row.get("departmentId") or row.get("department", {}).get("id") or "")
         if not allows_inbound(
             department_id=department_id,
@@ -93,8 +136,11 @@ class MpiZohoSync(models.AbstractModel):
                 return
         detail = client.get_ticket(desk_id)
         ticket = mapping.helpdesk_ticket_id if mapping and mapping.helpdesk_ticket_id else False
+        is_new = not ticket
         if not ticket:
-            ticket = self._create_helpdesk_ticket(connection, detail)
+            ticket = self._create_helpdesk_ticket(
+                connection, detail, partner_cache=partner_cache
+            )
         if mapping and not mapping.helpdesk_ticket_id:
             mapping.helpdesk_ticket_id = ticket
         if not mapping:
@@ -105,14 +151,27 @@ class MpiZohoSync(models.AbstractModel):
                     "desk_ticket_id": desk_id,
                 }
             )
+            is_new = True
         values = self._desk_to_helpdesk_values(connection, detail)
         ticket.with_context(mpi_zoho_skip_outbox=True).write(values)
         mapping.write({"last_payload_hash": incoming_hash, "last_origin": "desk", "source_removed": False})
-        self._sync_threads_in(connection, client, mapping, desk_id)
-        self._sync_attachments_in(connection, client, mapping, desk_id, detail)
+        if should_sync_side_content(
+            is_new=is_new,
+            backfill=backfill,
+            force_side_content=force_side_content,
+        ):
+            self._sync_threads_in(connection, client, mapping, desk_id)
+            self._sync_attachments_in(
+                connection,
+                client,
+                mapping,
+                desk_id,
+                detail,
+                defer_binaries=defer_attachment_binaries(backfill=backfill),
+            )
 
-    def _create_helpdesk_ticket(self, connection, detail):
-        partner = self._partner_for_desk(connection, detail)
+    def _create_helpdesk_ticket(self, connection, detail, partner_cache=None):
+        partner = self._partner_for_desk(connection, detail, partner_cache=partner_cache)
         stage = self._stage_for_desk_status(connection, detail.get("status"))
         department_id = str(detail.get("departmentId") or detail.get("department", {}).get("id") or "")
         team = self._inbound_team_for_department(connection, department_id)
@@ -195,12 +254,15 @@ class MpiZohoSync(models.AbstractModel):
                 ids.append(mapped.tag_id.id)
         return self.env["helpdesk.tag"].browse(ids)
 
-    def _partner_for_desk(self, connection, detail):
+    def _partner_for_desk(self, connection, detail, partner_cache=None):
         contact = detail.get("contact") or {}
         account = detail.get("account") or {}
         email = contact.get("email") or account.get("email")
         name = contact.get("lastName") or account.get("accountName") or contact.get("firstName")
         vat = self._account_vat(account)
+        cache_key = partner_cache_key(email=email, vat=vat, name=name)
+        if partner_cache is not None and cache_key in partner_cache:
+            return partner_cache[cache_key]
         domain = [("company_id", "in", [False, connection.company_id.id])]
         if email:
             domain = ["&"] + domain + [("email", "=ilike", email)]
@@ -214,16 +276,20 @@ class MpiZohoSync(models.AbstractModel):
             kind=kind, email=email, vat=vat, name=name, existing=existing
         )
         if decision == "link" and partner_id:
-            return self.env["res.partner"].browse(partner_id)
-        return self.env["res.partner"].create(
-            {
-                "name": name or email or "Desk contact",
-                "email": email,
-                "vat": vat or False,
-                "is_company": bool(account.get("id") and not contact.get("email")),
-                "company_id": connection.company_id.id,
-            }
-        )
+            partner = self.env["res.partner"].browse(partner_id)
+        else:
+            partner = self.env["res.partner"].create(
+                {
+                    "name": name or email or "Desk contact",
+                    "email": email,
+                    "vat": vat or False,
+                    "is_company": bool(account.get("id") and not contact.get("email")),
+                    "company_id": connection.company_id.id,
+                }
+            )
+        if partner_cache is not None:
+            partner_cache[cache_key] = partner
+        return partner
 
     def _account_vat(self, account):
         return (account.get("customFields") or {}).get("vat") or account.get("vat")
@@ -261,7 +327,9 @@ class MpiZohoSync(models.AbstractModel):
                 }
             )
 
-    def _sync_attachments_in(self, connection, client, mapping, desk_id, detail):
+    def _sync_attachments_in(
+        self, connection, client, mapping, desk_id, detail, *, defer_binaries=False
+    ):
         payload = client.list_attachments(desk_id)
         attachments = payload.get("data") or []
         att_ids = [str(row.get("id") or "") for row in attachments if row.get("id")]
@@ -291,6 +359,8 @@ class MpiZohoSync(models.AbstractModel):
                 max_bytes=connection.attachment_max_bytes or 0,
                 mime_allow=connection._mime_allow_set(),
             )
+            if defer_binaries and decision == "store":
+                decision = "url_only"
             attachment = self.env["ir.attachment"]
             if decision == "store":
                 content = b""
@@ -336,7 +406,9 @@ class MpiZohoSync(models.AbstractModel):
         pending = self.env["mpi.zoho.desk.outbox"].search(
             [("connection_id", "=", connection.id), ("state", "=", "pending")],
             order="id",
+            limit=200,
         )
+        batch = 0
         for row in pending:
             try:
                 self._flush_one(connection, client, row)
@@ -344,8 +416,13 @@ class MpiZohoSync(models.AbstractModel):
             except DeskClientError as exc:
                 row.write({"state": "error", "error": str(exc)})
                 _logger.warning("Outbox %s failed: %s", row.id, exc)
-            if not self._cron_keep_going(1):
-                return
+            batch += 1
+            if batch >= COMMIT_EVERY:
+                if not self._cron_keep_going(batch):
+                    return
+                batch = 0
+        if batch:
+            self._cron_keep_going(batch)
 
     def _flush_one(self, connection, client, row):
         ticket = row.helpdesk_ticket_id
@@ -511,4 +588,16 @@ class MpiZohoSync(models.AbstractModel):
         detail = {"id": desk_id, "departmentId": ticket_payload.get("departmentId")}
         if not detail.get("departmentId"):
             detail = client.get_ticket(desk_id)
-        self._apply_desk_ticket(connection, client, detail)
+        force_side = event_type in {
+            "Ticket_Add",
+            "Ticket_Thread_Add",
+            "Ticket_Comment_Add",
+        } or "attachment" in (event_type or "").lower()
+        self._apply_desk_ticket(
+            connection,
+            client,
+            detail,
+            backfill=False,
+            force_side_content=force_side or not mapping,
+            partner_cache={},
+        )
