@@ -236,8 +236,11 @@ class DeskClient:
         page = self._authed("GET", "/organizationFields", params=params)
         return page.get("data") or []
 
-    def get_ticket(self, ticket_id):
-        return self._authed("GET", "/tickets/%s" % ticket_id)
+    def get_ticket(self, ticket_id, **params):
+        params = dict(params)
+        # Nested contact/account with email and name need include=contacts.
+        params.setdefault("include", "contacts,products,assignee,departments,team")
+        return self._authed("GET", "/tickets/%s" % ticket_id, params=params)
 
     def create_ticket(self, values):
         return self._authed("POST", "/tickets", json_body=values)

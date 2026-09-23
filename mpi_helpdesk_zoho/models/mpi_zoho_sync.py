@@ -8,6 +8,7 @@ from odoo import api, fields, models
 from ..lib.attachment_policy import decide_attachment
 from ..lib.comment_visibility import desk_thread_to_odoo, odoo_message_to_desk
 from ..lib.desk_client import DeskClientError
+from ..lib.desk_contact import desk_contact_identity, partner_display_name
 from ..lib.echo import payload_hash, should_apply
 from ..lib.partner_match import resolve_partner
 from ..lib.priority import desk_to_helpdesk, helpdesk_to_desk
@@ -255,44 +256,54 @@ class MpiZohoSync(models.AbstractModel):
         return self.env["helpdesk.tag"].browse(ids)
 
     def _partner_for_desk(self, connection, detail, partner_cache=None):
-        contact = detail.get("contact") or {}
-        account = detail.get("account") or {}
-        email = contact.get("email") or account.get("email")
-        name = contact.get("lastName") or account.get("accountName") or contact.get("firstName")
-        vat = self._account_vat(account)
-        cache_key = partner_cache_key(email=email, vat=vat, name=name)
-        if partner_cache is not None and cache_key in partner_cache:
-            return partner_cache[cache_key]
-        domain = [("company_id", "in", [False, connection.company_id.id])]
-        if email:
-            domain = ["&"] + domain + [("email", "=ilike", email)]
-        elif vat:
-            domain = ["&"] + domain + [("vat", "=", vat)]
-        elif name:
-            domain = ["&"] + domain + [("name", "=ilike", name)]
-        existing = self.env["res.partner"].search_read(domain, ["email", "vat", "name"], limit=20)
-        kind = "contact" if contact.get("email") else "account"
-        decision, partner_id = resolve_partner(
-            kind=kind, email=email, vat=vat, name=name, existing=existing
+        identity = desk_contact_identity(detail)
+        email = identity.get("email")
+        name = identity.get("name")
+        vat = identity.get("vat")
+        cache_key = partner_cache_key(
+            email=email,
+            vat=vat,
+            name=name,
+            contact_id=identity.get("contact_id"),
+            account_id=identity.get("account_id"),
         )
-        if decision == "link" and partner_id:
-            partner = self.env["res.partner"].browse(partner_id)
-        else:
+        if partner_cache is not None and cache_key is not None and cache_key in partner_cache:
+            return partner_cache[cache_key]
+
+        partner = None
+        if email or vat or name:
+            domain = [("company_id", "in", [False, connection.company_id.id])]
+            if email:
+                domain = ["&"] + domain + [("email", "=ilike", email)]
+            elif vat:
+                domain = ["&"] + domain + [("vat", "=", vat)]
+            else:
+                domain = ["&"] + domain + [("name", "=ilike", name)]
+            existing = self.env["res.partner"].search_read(
+                domain, ["email", "vat", "name"], limit=20
+            )
+            kind = identity.get("kind") or ("contact" if email else "account")
+            decision, partner_id = resolve_partner(
+                kind=kind, email=email, vat=vat, name=name, existing=existing
+            )
+            if decision == "link" and partner_id:
+                partner = self.env["res.partner"].browse(partner_id)
+
+        if not partner:
             partner = self.env["res.partner"].create(
                 {
-                    "name": name or email or "Desk contact",
-                    "email": email,
+                    "name": partner_display_name(
+                        name=name, email=email, contact_id=identity.get("contact_id")
+                    ),
+                    "email": email or False,
                     "vat": vat or False,
-                    "is_company": bool(account.get("id") and not contact.get("email")),
+                    "is_company": bool(identity.get("is_company")),
                     "company_id": connection.company_id.id,
                 }
             )
-        if partner_cache is not None:
+        if partner_cache is not None and cache_key is not None:
             partner_cache[cache_key] = partner
         return partner
-
-    def _account_vat(self, account):
-        return (account.get("customFields") or {}).get("vat") or account.get("vat")
 
     def _sync_threads_in(self, connection, client, mapping, desk_id):
         payload = client.list_threads(desk_id)

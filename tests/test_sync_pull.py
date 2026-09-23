@@ -41,9 +41,12 @@ class TestSyncPull(unittest.TestCase):
 
     def test_partner_cache_key_normalizes(self):
         self.assertEqual(
-            partner_cache_key(email=" A@Ex.COM ", vat="at123", name=" Ann "),
-            ("a@ex.com", "AT123", "ann"),
+            partner_cache_key(email=" A@Ex.COM ", vat="at123", name=" Ann ", contact_id="C1"),
+            ("C1", "", "a@ex.com", "AT123", "ann"),
         )
+
+    def test_partner_cache_key_empty_is_none(self):
+        self.assertIsNone(partner_cache_key())
 
 
 if __name__ == "__main__":

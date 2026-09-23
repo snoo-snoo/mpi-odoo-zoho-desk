@@ -29,9 +29,15 @@ def defer_attachment_binaries(*, backfill):
     return bool(backfill)
 
 
-def partner_cache_key(*, email=None, vat=None, name=None):
-    return (
+def partner_cache_key(*, email=None, vat=None, name=None, contact_id=None, account_id=None):
+    """Stable cache key. Returns None when identity is empty (do not cache)."""
+    key = (
+        (contact_id or "").strip(),
+        (account_id or "").strip(),
         (email or "").strip().lower(),
         (vat or "").strip().upper(),
         (name or "").strip().lower(),
     )
+    if not any(key):
+        return None
+    return key
