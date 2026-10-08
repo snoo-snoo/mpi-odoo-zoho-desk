@@ -11,6 +11,7 @@ class TestDeskTicketLink(TransactionCase):
                 "name": "Desk EU",
                 "desk_org_id": "1",
                 "desk_dc": "eu",
+                "desk_agent_base_url": "https://helpdesk.oekofen.com",
                 "desk_agent_portal": "oekofen",
                 "company_id": self.env.company.id,
             }
@@ -30,7 +31,7 @@ class TestDeskTicketLink(TransactionCase):
         )
         self.assertEqual(
             ticket.mpi_zoho_desk_ticket_url,
-            "https://desk.zoho.eu/agent/oekofen/tickets/details/63383000025230899",
+            "https://helpdesk.oekofen.com/agent/oekofen/all/tickets/details/63383000025230899",
         )
         action = ticket.action_open_mpi_zoho_desk_ticket()
         self.assertEqual(action["type"], "ir.actions.act_url")

@@ -28,6 +28,7 @@ class HelpdeskTicket(models.Model):
         "mpi_zoho_map_ids.desk_ticket_id",
         "mpi_zoho_map_ids.connection_id.desk_dc",
         "mpi_zoho_map_ids.connection_id.desk_agent_portal",
+        "mpi_zoho_map_ids.connection_id.desk_agent_base_url",
     )
     def _compute_mpi_zoho_desk_ticket_url(self):
         for ticket in self:

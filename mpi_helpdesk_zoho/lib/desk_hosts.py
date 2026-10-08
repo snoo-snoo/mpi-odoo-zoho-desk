@@ -33,10 +33,20 @@ def accounts_root(dc):
     return ACCOUNTS_ROOTS.get(dc, ACCOUNTS_ROOTS["com"])
 
 
-def desk_ticket_agent_url(dc, agent_portal, desk_ticket_id):
-    """Agent UI deep link for a Desk ticket (requires the portal segment from the Desk URL)."""
+def desk_agent_base_url_from_custom_domain(custom_domain):
+    if not custom_domain:
+        return False
+    raw = str(custom_domain).strip()
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw.rstrip("/")
+    return "https://%s" % raw.strip("/")
+
+
+def desk_ticket_agent_url(dc, agent_portal, desk_ticket_id, *, agent_base_url=None):
+    """Agent UI deep link (custom domain or Zoho DC, with /all/ tickets path)."""
     portal = (agent_portal or "").strip().strip("/")
     ticket_id = (desk_ticket_id or "").strip()
     if not portal or not ticket_id:
         return False
-    return "%s/agent/%s/tickets/details/%s" % (desk_root(dc), portal, ticket_id)
+    base = (agent_base_url or "").strip().rstrip("/") or desk_root(dc)
+    return "%s/agent/%s/all/tickets/details/%s" % (base, portal, ticket_id)

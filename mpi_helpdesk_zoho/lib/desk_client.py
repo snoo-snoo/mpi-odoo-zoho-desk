@@ -145,6 +145,16 @@ class DeskClient:
     def list_organizations(self, **params):
         return self._authed("GET", "/organizations", params=params)
 
+    def get_organization(self, organization_id, **params):
+        params = dict(params)
+        params.setdefault("includeCustomDomain", "true")
+        page = self._authed("GET", "/organizations/%s" % organization_id, params=params)
+        if isinstance(page, dict) and page.get("id"):
+            return page
+        if isinstance(page, dict):
+            return page.get("data") or page
+        return page
+
     def _list_paginated(self, path, **params):
         """Collect all pages from a Desk list endpoint. Yields each row."""
         start = 0

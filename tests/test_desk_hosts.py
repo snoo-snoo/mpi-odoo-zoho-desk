@@ -8,7 +8,12 @@ from lib_import import ensure_lib_package
 
 ensure_lib_package()
 
-from mpi_helpdesk_zoho.lib.desk_hosts import accounts_root, desk_root, desk_ticket_agent_url
+from mpi_helpdesk_zoho.lib.desk_hosts import (
+    accounts_root,
+    desk_agent_base_url_from_custom_domain,
+    desk_root,
+    desk_ticket_agent_url,
+)
 from mpi_helpdesk_zoho.lib.zoho_jwt import jwks_url
 
 
@@ -24,12 +29,27 @@ class TestDeskHosts(unittest.TestCase):
         self.assertEqual(jwks_url("eu"), "https://desk.zoho.eu/.well-known/jwks.json")
 
     def test_desk_ticket_agent_url(self):
-        url = desk_ticket_agent_url("eu", "oekofen", "63383000025230899")
+        url = desk_ticket_agent_url(
+            "eu",
+            "oekofen",
+            "63383000025232242",
+            agent_base_url="https://helpdesk.oekofen.com",
+        )
         self.assertEqual(
             url,
-            "https://desk.zoho.eu/agent/oekofen/tickets/details/63383000025230899",
+            "https://helpdesk.oekofen.com/agent/oekofen/all/tickets/details/63383000025232242",
+        )
+        self.assertEqual(
+            desk_ticket_agent_url("eu", "oekofen", "1"),
+            "https://desk.zoho.eu/agent/oekofen/all/tickets/details/1",
         )
         self.assertFalse(desk_ticket_agent_url("eu", "", "63383000025230899"))
+
+    def test_custom_domain_to_agent_base_url(self):
+        self.assertEqual(
+            desk_agent_base_url_from_custom_domain("helpdesk.oekofen.com"),
+            "https://helpdesk.oekofen.com",
+        )
 
 
 if __name__ == "__main__":

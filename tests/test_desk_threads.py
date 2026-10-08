@@ -6,34 +6,23 @@ from lib_import import ensure_lib_package
 
 ensure_lib_package()
 
-from mpi_helpdesk_zoho.lib.desk_threads import (
-    desk_ticket_description,
-    sort_threads_for_chatter,
-    thread_body,
-)
+from mpi_helpdesk_zoho.lib.desk_threads import sort_threads_for_chatter, thread_body
 
 
 class TestDeskThreads(unittest.TestCase):
-    def test_description_falls_back_to_first_thread(self):
-        detail = {"description": "", "subject": "Servicebericht"}
-        threads = [
-            {"id": "1", "summary": "Short"},
-            {"id": "2", "content": "Hallo Raphael, anbei der Servicebericht."},
-        ]
-        self.assertEqual(
-            desk_ticket_description(detail, threads),
-            "Hallo Raphael, anbei der Servicebericht.",
-        )
-
-    def test_description_prefers_ticket_field(self):
-        detail = {"description": "<p>Desk HTML body</p>"}
-        threads = [{"content": "Thread only"}]
-        self.assertEqual(desk_ticket_description(detail, threads), "<p>Desk HTML body</p>")
-
     def test_thread_body_prefers_content(self):
         self.assertEqual(
             thread_body({"content": " full ", "summary": "short"}),
             "full",
+        )
+
+    def test_thread_body_rejects_truncated_summary(self):
+        self.assertFalse(
+            thread_body({"summary": "Hallo, Darf man wirklich ein KGT ..."})
+        )
+        self.assertEqual(
+            thread_body({"content": "Full text from get_thread"}),
+            "Full text from get_thread",
         )
 
     def test_sort_threads_oldest_first_for_chatter(self):

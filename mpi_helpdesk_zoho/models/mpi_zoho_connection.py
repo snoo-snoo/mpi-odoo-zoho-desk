@@ -10,7 +10,7 @@ from odoo.exceptions import UserError
 
 from ..lib.attachment_policy import DEFAULT_MAX_BYTES, DEFAULT_MIME_ALLOW
 from ..lib.desk_client import DeskClient, DeskClientError
-from ..lib.desk_hosts import desk_ticket_agent_url
+from ..lib.desk_hosts import desk_agent_base_url_from_custom_domain, desk_ticket_agent_url
 from ..lib.requests_transport import RequestsTransport
 from ..lib.self_client import SELF_CLIENT_SCOPE_CSV
 
@@ -37,10 +37,17 @@ class MpiZohoConnection(models.Model):
     )
 
     desk_org_id = fields.Char(string="Desk Organization", required=True, tracking=True)
+    desk_agent_base_url = fields.Char(
+        string="Desk agent URL",
+        tracking=True,
+        help="Agent UI origin, e.g. https://helpdesk.example.com. "
+        "Filled from Desk custom domain when you test the Connection. "
+        "Leave empty to use the Zoho DC host (desk.zoho.eu).",
+    )
     desk_agent_portal = fields.Char(
         string="Desk agent portal",
         tracking=True,
-        help="Name from your Desk agent URL: https://desk.zoho…/agent/<this>/tickets/… "
+        help="Portal segment from your agent URL: …/agent/<this>/all/tickets/… "
         "Filled automatically when you test the Connection.",
     )
     desk_dc = fields.Selection(
@@ -215,23 +222,37 @@ class MpiZohoConnection(models.Model):
             client.org_id = ""
             return client.list_tickets(**{"from": 1, "limit": 1})
 
-    def _desk_agent_portal_from_api(self, client):
+    def _desk_agent_ui_from_api(self, client):
         self.ensure_one()
-        page = client.list_organizations()
-        organizations = page.get("data") or []
         target = (self.desk_org_id or "").strip()
-        for organization in organizations:
-            if str(organization.get("id") or "") == target:
-                return organization.get("portalName") or organization.get("companyName")
-        if len(organizations) == 1:
-            only = organizations[0]
-            return only.get("portalName") or only.get("companyName")
-        return False
+        organization = False
+        if target:
+            try:
+                organization = client.get_organization(target)
+            except DeskClientError:
+                organization = False
+        if not organization:
+            page = client.list_organizations()
+            organizations = page.get("data") or []
+            for row in organizations:
+                if str(row.get("id") or "") == target:
+                    organization = row
+                    break
+            if not organization and len(organizations) == 1:
+                organization = organizations[0]
+        if not organization:
+            return False, False
+        portal = organization.get("portalName") or organization.get("companyName")
+        base_url = desk_agent_base_url_from_custom_domain(organization.get("customDomain"))
+        return portal, base_url
 
     def desk_ticket_url(self, desk_ticket_id):
         self.ensure_one()
         return desk_ticket_agent_url(
-            self.desk_dc, self.desk_agent_portal, desk_ticket_id
+            self.desk_dc,
+            self.desk_agent_portal,
+            desk_ticket_id,
+            agent_base_url=self.desk_agent_base_url,
         )
 
     def action_test_connection(self):
@@ -240,13 +261,15 @@ class MpiZohoConnection(models.Model):
         try:
             client = self._make_client()
             self._probe_tickets(client)
-            portal = self._desk_agent_portal_from_api(client)
+            portal, base_url = self._desk_agent_ui_from_api(client)
         except DeskClientError as exc:
             self.write({"state": "error", "last_error": str(exc)})
             raise UserError(_("Desk refused the Connection: %s") % exc) from exc
         values = {"state": "verified", "last_error": False}
         if portal and portal != self.desk_agent_portal:
             values["desk_agent_portal"] = portal
+        if base_url and base_url != self.desk_agent_base_url:
+            values["desk_agent_base_url"] = base_url
         self.write(values)
         if first_verify:
             return self.action_configure_sync()

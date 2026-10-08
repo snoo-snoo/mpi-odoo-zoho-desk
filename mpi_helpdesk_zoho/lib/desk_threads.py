@@ -30,21 +30,19 @@ def sort_threads_for_chatter(threads):
     return sorted(threads or [], key=desk_thread_datetime)
 
 
-def desk_ticket_description(detail, threads=None):
-    """Prefer ticket description; fall back to the first thread with body text."""
-    description = (detail or {}).get("description") if detail else None
-    if description and str(description).strip():
-        return description
-    for thread in sort_threads_for_chatter(threads):
-        body = thread_body(thread)
-        if body:
-            return body
-    return False
+def is_truncated_desk_summary(text):
+    text = (text or "").strip()
+    return bool(text) and (text.endswith("...") or text.endswith("…"))
 
 
 def thread_body(thread):
+    """Full thread body; list API summaries ending in … are not used."""
     if not thread:
         return False
-    content = thread.get("content") or thread.get("summary") or ""
-    content = str(content).strip()
-    return content or False
+    content = str(thread.get("content") or "").strip()
+    if content:
+        return content
+    summary = str(thread.get("summary") or "").strip()
+    if summary and not is_truncated_desk_summary(summary):
+        return summary
+    return False

@@ -4,13 +4,19 @@ import logging
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.tools import html2plaintext
 
 from ..lib.attachment_policy import decide_attachment
+from ..lib.desk_attachments import (
+    desk_attachment_download_url,
+    desk_attachment_id,
+    desk_attachment_mimetype,
+)
 from ..lib.comment_visibility import desk_thread_to_odoo, odoo_message_to_desk
 from ..lib.desk_client import DeskClientError
 from ..lib.desk_contact import desk_contact_identity, partner_display_name
 from ..lib.desk_threads import (
-    desk_ticket_description,
+    is_truncated_desk_summary,
     sort_threads_for_chatter,
     thread_body,
 )
@@ -237,6 +243,7 @@ class MpiZohoSync(models.AbstractModel):
             mapping = self._claim_desk_ticket_mapping(connection, desk_id, desk_map_cache)
         detail = client.get_ticket(desk_id)
         threads = sort_threads_for_chatter(client.list_threads(desk_id))
+        description_text = self._desk_ticket_description_text(client, desk_id, detail, threads)
         ticket = mapping.helpdesk_ticket_id or False
         is_new = not ticket
         if not ticket:
@@ -244,15 +251,21 @@ class MpiZohoSync(models.AbstractModel):
                 connection,
                 detail,
                 partner_cache=partner_cache,
-                threads=threads,
+                description_text=description_text,
             )
             ticket = self._link_helpdesk_ticket_to_mapping(mapping, ticket)
             is_new = True
         if apply_ticket_fields:
-            values = self._desk_to_helpdesk_values(connection, detail, threads=threads)
+            values = self._desk_to_helpdesk_values(
+                connection, detail, description_text=description_text
+            )
             ticket.with_context(mpi_zoho_skip_outbox=True).write(values)
             mapping.write(
                 {"last_payload_hash": incoming_hash, "last_origin": "desk", "source_removed": False}
+            )
+        elif description_text and self._description_needs_refresh(ticket.description, description_text):
+            ticket.with_context(mpi_zoho_skip_outbox=True).write(
+                {"description": description_text}
             )
         sync_side_content = (
             should_sync_side_content(
@@ -265,7 +278,12 @@ class MpiZohoSync(models.AbstractModel):
         if sync_side_content:
             defer = defer_attachment_binaries(backfill=backfill)
             self._sync_threads_in(
-                connection, client, mapping, desk_id, threads=threads, defer_binaries=defer
+                connection,
+                client,
+                mapping,
+                desk_id,
+                threads=threads,
+                defer_binaries=False,
             )
             self._sync_attachments_in(
                 connection,
@@ -275,9 +293,34 @@ class MpiZohoSync(models.AbstractModel):
                 detail,
                 defer_binaries=defer,
             )
-            description = desk_ticket_description(detail, threads)
-            if description and not (ticket.description or "").strip():
-                ticket.with_context(mpi_zoho_skip_outbox=True).write({"description": description})
+    def _desk_description_plaintext(self, text):
+        if not text:
+            return False
+        plain = html2plaintext(str(text)).strip()
+        return plain or str(text).strip()
+
+    def _desk_ticket_description_text(self, client, desk_id, detail, threads):
+        raw = (detail.get("description") or "").strip()
+        if raw and not is_truncated_desk_summary(raw):
+            return self._desk_description_plaintext(raw)
+        for thread in sort_threads_for_chatter(threads):
+            full = self._resolve_thread(client, desk_id, thread)
+            body = thread_body(full)
+            if body:
+                return self._desk_description_plaintext(body)
+        return False
+
+    @staticmethod
+    def _description_needs_refresh(current, new):
+        current = (current or "").strip()
+        new = (new or "").strip()
+        if not new:
+            return False
+        if not current:
+            return True
+        if current.rstrip().endswith("...") or current.rstrip().endswith("…"):
+            return True
+        return len(new) > len(current) + 40
 
     def _mapping_needs_side_content(self, mapping):
         if not mapping or not mapping.helpdesk_ticket_id:
@@ -299,7 +342,9 @@ class MpiZohoSync(models.AbstractModel):
             _logger.warning("Could not load Desk thread %s on ticket %s", thread_id, desk_id)
             return thread
 
-    def _create_helpdesk_ticket(self, connection, detail, partner_cache=None, threads=None):
+    def _create_helpdesk_ticket(
+        self, connection, detail, partner_cache=None, *, description_text=False
+    ):
         partner = self._partner_for_desk(connection, detail, partner_cache=partner_cache)
         stage = self._stage_for_desk_status(connection, detail.get("status"))
         department_id = str(detail.get("departmentId") or detail.get("department", {}).get("id") or "")
@@ -307,7 +352,7 @@ class MpiZohoSync(models.AbstractModel):
         return self.env["helpdesk.ticket"].with_context(mpi_zoho_skip_outbox=True).create(
             {
                 "name": detail.get("subject") or "Desk ticket",
-                "description": desk_ticket_description(detail, threads) or False,
+                "description": description_text or False,
                 "company_id": connection.company_id.id,
                 "partner_id": partner.id if partner else False,
                 "stage_id": stage.id if stage else False,
@@ -325,11 +370,11 @@ class MpiZohoSync(models.AbstractModel):
                 return mapped.team_id
         return connection.inbound_team_id
 
-    def _desk_to_helpdesk_values(self, connection, detail, threads=None):
+    def _desk_to_helpdesk_values(self, connection, detail, *, description_text=False):
         odoo_fields = {}
         desk_fields = {
             "name": detail.get("subject"),
-            "description": desk_ticket_description(detail, threads),
+            "description": description_text,
         }
         priority = desk_to_helpdesk(detail.get("priority"))
         if priority:
@@ -451,17 +496,31 @@ class MpiZohoSync(models.AbstractModel):
         ) if thread_ids else set()
         for thread in threads:
             thread_id = str(thread.get("id") or "")
-            if not thread_id or thread_id in known:
+            if not thread_id:
                 continue
             thread = self._resolve_thread(client, desk_id, thread)
+            att_rows = thread.get("attachments") or []
+            if thread_id in known:
+                self._sync_attachments_on_known_thread(
+                    connection,
+                    client,
+                    mapping,
+                    desk_id,
+                    thread_id,
+                    att_rows,
+                    defer_binaries=defer_binaries,
+                )
+                continue
             visibility = desk_thread_to_odoo(is_public=bool(thread.get("isPublic", thread.get("ispublic"))))
             subtype = "mail.mt_comment" if visibility == "public" else "mail.mt_note"
             attachment_ids = self._desk_attachment_ids_for_message(
                 connection,
                 client,
                 mapping,
-                thread.get("attachments") or [],
+                att_rows,
                 defer_binaries=defer_binaries,
+                desk_ticket_id=desk_id,
+                desk_thread_id=thread_id,
             )
             raw_time = thread.get("sendDateTime") or thread.get("createdTime")
             message = mapping.helpdesk_ticket_id.with_context(mpi_zoho_skip_outbox=True).message_post(
@@ -479,8 +538,53 @@ class MpiZohoSync(models.AbstractModel):
                 }
             )
 
+    def _sync_attachments_on_known_thread(
+        self,
+        connection,
+        client,
+        mapping,
+        desk_id,
+        thread_id,
+        att_rows,
+        *,
+        defer_binaries=False,
+    ):
+        if not att_rows:
+            return
+        comment_map = self.env["mpi.zoho.desk.comment.map"].search(
+            [("ticket_map_id", "=", mapping.id), ("desk_thread_id", "=", thread_id)],
+            limit=1,
+        )
+        if not comment_map.mail_message_id:
+            return
+        attachment_ids = self._desk_attachment_ids_for_message(
+            connection,
+            client,
+            mapping,
+            att_rows,
+            defer_binaries=defer_binaries,
+            desk_ticket_id=desk_id,
+            desk_thread_id=thread_id,
+            mail_message=comment_map.mail_message_id,
+        )
+        if attachment_ids:
+            message = comment_map.mail_message_id
+            existing = set(message.attachment_ids.ids)
+            link = [(4, att_id) for att_id in attachment_ids if att_id not in existing]
+            if link:
+                message.write({"attachment_ids": link})
+
     def _desk_attachment_ids_for_message(
-        self, connection, client, mapping, rows, *, defer_binaries=False
+        self,
+        connection,
+        client,
+        mapping,
+        rows,
+        *,
+        defer_binaries=False,
+        desk_ticket_id=None,
+        desk_thread_id=None,
+        mail_message=None,
     ):
         attachment_ids = []
         for row in rows:
@@ -490,15 +594,27 @@ class MpiZohoSync(models.AbstractModel):
                 mapping,
                 row,
                 defer_binaries=defer_binaries,
+                desk_ticket_id=desk_ticket_id,
+                desk_thread_id=desk_thread_id,
+                mail_message=mail_message,
             )
             if attachment:
                 attachment_ids.append(attachment.id)
         return attachment_ids
 
     def _ingest_desk_attachment_row(
-        self, connection, client, mapping, row, *, defer_binaries=False
+        self,
+        connection,
+        client,
+        mapping,
+        row,
+        *,
+        defer_binaries=False,
+        desk_ticket_id=None,
+        desk_thread_id=None,
+        mail_message=None,
     ):
-        desk_att_id = str(row.get("id") or "")
+        desk_att_id = desk_attachment_id(row)
         if not desk_att_id:
             return self.env["ir.attachment"]
         existing = self.env["mpi.zoho.desk.attachment.map"].search(
@@ -511,9 +627,14 @@ class MpiZohoSync(models.AbstractModel):
         if existing.attachment_id:
             return existing.attachment_id
         size = int(row.get("size") or 0)
-        mimetype = row.get("type") or row.get("contentType") or "application/octet-stream"
+        mimetype = desk_attachment_mimetype(row)
         name = row.get("name") or "desk-file"
-        url = row.get("href") or row.get("previewurl") or ""
+        url = desk_attachment_download_url(
+            client,
+            row,
+            desk_ticket_id=desk_ticket_id or mapping.desk_ticket_id,
+            desk_thread_id=desk_thread_id,
+        )
         decision = decide_attachment(
             size_bytes=size,
             mimetype=mimetype,
@@ -524,7 +645,9 @@ class MpiZohoSync(models.AbstractModel):
         )
         if defer_binaries and decision == "store":
             decision = "url_only"
-        if decision == "skip":
+        if decision == "reject" and url:
+            decision = "url_only"
+        if decision in ("skip", "reject"):
             self.env["mpi.zoho.desk.attachment.map"].create(
                 {
                     "ticket_map_id": mapping.id,
@@ -534,6 +657,11 @@ class MpiZohoSync(models.AbstractModel):
                 }
             )
             return self.env["ir.attachment"]
+        res_model = "helpdesk.ticket"
+        res_id = mapping.helpdesk_ticket_id.id
+        if mail_message:
+            res_model = "mail.message"
+            res_id = mail_message.id
         attachment = self.env["ir.attachment"]
         if decision == "store":
             content = b""
@@ -547,8 +675,8 @@ class MpiZohoSync(models.AbstractModel):
                     "name": name,
                     "type": "binary",
                     "raw": content,
-                    "res_model": "helpdesk.ticket",
-                    "res_id": mapping.helpdesk_ticket_id.id,
+                    "res_model": res_model,
+                    "res_id": res_id,
                     "mimetype": mimetype,
                 }
             )
@@ -558,8 +686,8 @@ class MpiZohoSync(models.AbstractModel):
                     "name": name,
                     "type": "url",
                     "url": url or False,
-                    "res_model": "helpdesk.ticket",
-                    "res_id": mapping.helpdesk_ticket_id.id,
+                    "res_model": res_model,
+                    "res_id": res_id,
                     "mimetype": mimetype,
                 }
             )
@@ -585,6 +713,7 @@ class MpiZohoSync(models.AbstractModel):
                 mapping,
                 row,
                 defer_binaries=defer_binaries,
+                desk_ticket_id=desk_id,
             )
 
     @api.private
