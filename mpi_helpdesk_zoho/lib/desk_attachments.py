@@ -8,6 +8,7 @@ import re
 from .desk_hosts import desk_root
 
 _ATTACHMENT_ID_RE = re.compile(r"/attachments/([^/]+)")
+_THREAD_IN_HREF_RE = re.compile(r"/threads/(\d+)/attachments/", re.I)
 
 
 def desk_attachment_id(row):
@@ -19,6 +20,30 @@ def desk_attachment_id(row):
         return ""
     match = _ATTACHMENT_ID_RE.search(href)
     return match.group(1) if match else ""
+
+
+def desk_attachment_thread_id(row):
+    for key in ("threadId", "thread_id"):
+        raw = row.get(key)
+        if raw:
+            return str(raw)
+    href = (row.get("href") or row.get("downloadUrl") or "").strip()
+    match = _THREAD_IN_HREF_RE.search(href)
+    return match.group(1) if match else False
+
+
+def merge_desk_attachment_rows(*row_lists):
+    """Dedupe Desk attachment metadata rows by attachment id."""
+    merged = []
+    seen = set()
+    for rows in row_lists:
+        for row in rows or []:
+            att_id = desk_attachment_id(row)
+            if not att_id or att_id in seen:
+                continue
+            seen.add(att_id)
+            merged.append(row)
+    return merged
 
 
 def desk_attachment_mimetype(row):

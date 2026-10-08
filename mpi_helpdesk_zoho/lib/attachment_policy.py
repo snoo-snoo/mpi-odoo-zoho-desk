@@ -20,6 +20,15 @@ DEFAULT_MIME_ALLOW = frozenset(
         "application/vnd.oasis.opendocument.text",
         "application/vnd.oasis.opendocument.spreadsheet",
         "application/vnd.oasis.opendocument.presentation",
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/aac",
+        "audio/x-m4a",
+        "audio/webm",
     }
 )
 

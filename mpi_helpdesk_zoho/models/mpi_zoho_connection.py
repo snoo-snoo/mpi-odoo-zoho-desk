@@ -160,7 +160,8 @@ class MpiZohoConnection(models.Model):
     def _mime_allow_set(self):
         self.ensure_one()
         raw = self.attachment_mime_allow or ""
-        return frozenset(part.strip() for part in raw.split(",") if part.strip())
+        parsed = frozenset(part.strip() for part in raw.split(",") if part.strip())
+        return parsed | DEFAULT_MIME_ALLOW
 
     def _mapped_team_ids(self):
         self.ensure_one()

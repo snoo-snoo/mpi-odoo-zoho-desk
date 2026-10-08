@@ -60,6 +60,17 @@ class TestAttachmentPolicy(unittest.TestCase):
         )
         self.assertEqual(decision, "skip")
 
+    def test_mp3_under_cap_is_stored(self):
+        decision = decide_attachment(
+            size_bytes=2 * 1024 * 1024,
+            mimetype="audio/mpeg",
+            travel="desk_to_odoo",
+            direction="both",
+            max_bytes=DEFAULT_MAX_BYTES,
+            mime_allow=DEFAULT_MIME_ALLOW,
+        )
+        self.assertEqual(decision, "store")
+
     def test_outbound_skipped_when_direction_is_desk_to_odoo(self):
         decision = decide_attachment(
             size_bytes=1024,

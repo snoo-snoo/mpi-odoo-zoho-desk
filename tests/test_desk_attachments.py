@@ -10,6 +10,8 @@ from mpi_helpdesk_zoho.lib.desk_attachments import (
     desk_attachment_download_url,
     desk_attachment_id,
     desk_attachment_mimetype,
+    desk_attachment_thread_id,
+    merge_desk_attachment_rows,
 )
 
 
@@ -27,6 +29,23 @@ class TestDeskAttachments(unittest.TestCase):
             "href": "https://desk.zoho.eu/api/v1/tickets/1/threads/2/attachments/99/content",
         }
         self.assertEqual(desk_attachment_id(row), "99")
+
+    def test_thread_id_from_href(self):
+        row = {
+            "href": "https://desk.zoho.eu/api/v1/tickets/1/threads/42/attachments/99/content",
+        }
+        self.assertEqual(desk_attachment_thread_id(row), "42")
+
+    def test_merge_attachment_rows_dedupes(self):
+        rows = merge_desk_attachment_rows(
+            [{"id": "1", "name": "a.mp3"}],
+            [{"id": "1", "name": "a.mp3"}, {"id": "2", "name": "b.mp3"}],
+        )
+        self.assertEqual([desk_attachment_id(row) for row in rows], ["1", "2"])
+
+    def test_mimetype_for_mp3(self):
+        row = {"name": "noise.mp3", "type": "attachment"}
+        self.assertEqual(desk_attachment_mimetype(row), "audio/mpeg")
 
     def test_download_url_for_thread_attachment(self):
         row = {"id": "99"}
