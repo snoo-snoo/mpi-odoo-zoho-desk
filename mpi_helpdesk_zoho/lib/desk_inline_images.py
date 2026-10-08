@@ -32,6 +32,40 @@ def desk_api_absolute_url(client, src):
     return "%s/%s" % (base, raw)
 
 
+def _split_url_query(url):
+    if "?" in url:
+        return url.split("?", 1)
+    return url, ""
+
+
+def _inline_image_url_variants(url):
+    """Desk inlineImages may use /content before the query string, or no query with OAuth."""
+    if not url:
+        return []
+    variants = [url]
+    path, query = _split_url_query(url)
+    if not path.rstrip("/").endswith("/content"):
+        if query:
+            variants.append(path.rstrip("/") + "/content?" + query)
+        else:
+            variants.append(path.rstrip("/") + "/content")
+    path_only = path.rstrip("/")
+    if path_only.endswith("/content"):
+        path_only = path_only[: -len("/content")]
+    if query:
+        variants.append(path_only + "/content")
+        variants.append(path_only)
+    else:
+        variants.append(path_only + "/content")
+    seen = set()
+    ordered = []
+    for item in variants:
+        if item and item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return ordered
+
+
 def desk_inline_image_download_url(client, src, *, desk_ticket_id=None):
     """Build a Desk API URL for an inlineImages src (fix shorthand paths)."""
     raw = html.unescape((src or "").strip())
@@ -52,29 +86,52 @@ def desk_inline_image_download_url(client, src, *, desk_ticket_id=None):
     return desk_api_absolute_url(client, raw)
 
 
-def download_desk_inline_image(client, src, *, desk_ticket_id=None):
-    """Try canonical and /content URLs; return (bytes, url_used)."""
-    primary = desk_inline_image_download_url(client, src, desk_ticket_id=desk_ticket_id)
+def desk_inline_image_candidate_urls(client, src, *, desk_ticket_id=None):
+    """Ordered Desk URLs to try (ticket-scoped, shorthand, /content variants)."""
+    src = html.unescape((src or "").strip())
+    seeds = []
+    ticket_url = desk_inline_image_download_url(client, src, desk_ticket_id=desk_ticket_id)
+    if ticket_url:
+        seeds.append(ticket_url)
+    shorthand = desk_api_absolute_url(client, src)
+    if shorthand and shorthand not in seeds:
+        seeds.append(shorthand)
     candidates = []
-    if primary:
-        candidates.append(primary)
-        if "/inlineImages/" in primary and not primary.rstrip("/").endswith("/content"):
-            candidates.append(primary.rstrip("/") + "/content")
     seen = set()
+    for seed in seeds:
+        for url in _inline_image_url_variants(seed):
+            if url not in seen:
+                seen.add(url)
+                candidates.append(url)
+    return candidates
+
+
+def download_desk_inline_image(client, src, *, desk_ticket_id=None):
+    """Try Desk inlineImages URL variants; return (bytes, url_used)."""
     last_error = None
-    for url in candidates:
-        if url in seen:
-            continue
-        seen.add(url)
+    for url in desk_inline_image_candidate_urls(
+        client, src, desk_ticket_id=desk_ticket_id
+    ):
         try:
             content = client.download(url) or b""
-            if content:
+            if content and not _looks_like_error_payload(content):
                 return content, url
         except Exception as exc:
             last_error = exc
     if last_error:
         raise last_error
     return b"", ""
+
+
+def _looks_like_error_payload(content):
+    """Skip JSON error bodies mistaken for empty images."""
+    if not content or content[:1] not in (b"{", b"["):
+        return False
+    try:
+        text = content[:200].decode("utf-8", errors="ignore").lower()
+    except Exception:
+        return False
+    return "error" in text or "invalid" in text
 
 
 def is_desk_inline_image_src(src):
@@ -111,8 +168,11 @@ def embed_desk_inline_images(env, client, html_body, *, res_model, res_id, desk_
                 client, src, desk_ticket_id=desk_ticket_id
             )
         except Exception as exc:
+            status = getattr(exc, "status_code", None)
+            detail = " HTTP %s" % status if status else ""
             _logger.warning(
-                "Desk inline image download failed (%s): %s",
+                "Desk inline image download failed%s (%s): %s",
+                detail,
                 desk_inline_image_download_url(
                     client, src, desk_ticket_id=desk_ticket_id
                 ),

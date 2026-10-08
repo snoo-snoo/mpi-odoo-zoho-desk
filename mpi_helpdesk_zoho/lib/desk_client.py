@@ -303,7 +303,11 @@ class DeskClient:
             token = self.refresh_access_token()
             response = self._request("GET", url, headers=self._headers(token))
         if response.get("status_code", 200) >= 400:
-            raise DeskClientError("Download failed", response.get("status_code"), response)
+            raise DeskClientError(
+                "Download failed (HTTP %s)" % response.get("status_code"),
+                response.get("status_code"),
+                response,
+            )
         return response.get("content") or b""
 
     def create_webhook(self, *, name, url, department_ids, ignore_source_id):
