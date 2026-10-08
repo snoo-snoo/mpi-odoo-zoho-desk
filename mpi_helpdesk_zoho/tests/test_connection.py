@@ -143,7 +143,43 @@ class TestConnection(TransactionCase):
 
         connection._ensure_refresh_token(transport=FakeTransport())
         self.assertEqual(connection.refresh_token, "1000.refresh")
+        self.assertEqual(connection.desk_access_token, "acc")
+        self.assertTrue(connection.desk_access_token_expires_at)
         self.assertFalse(connection.authorization_code)
+
+    def test_cached_access_token_skips_oauth_refresh(self):
+        from datetime import timedelta
+
+        from odoo import fields
+
+        connection = self.env["mpi.zoho.desk.connection"].create(
+            {
+                "name": "Desk EU",
+                "desk_org_id": "1",
+                "company_id": self.env.company.id,
+                "client_id": "cid",
+                "client_secret": "csecret",
+                "refresh_token": "1000.refresh",
+                "desk_access_token": "cached-acc",
+                "desk_access_token_expires_at": fields.Datetime.now()
+                + timedelta(hours=1),
+            }
+        )
+
+        class FakeTransport:
+            def __init__(self):
+                self.urls = []
+
+            def request(self, method, url, **kwargs):
+                self.urls.append(url)
+                if "oauth/v2/token" in url:
+                    raise AssertionError("unexpected token refresh")
+                return {"status_code": 200, "json": {"data": []}}
+
+        transport = FakeTransport()
+        client = connection._make_client(transport=transport)
+        client.list_tickets(**{"from": 1, "limit": 1})
+        self.assertTrue(all("oauth/v2/token" not in url for url in transport.urls))
 
     def test_probe_retries_without_org_on_mismatch(self):
         connection = self.env["mpi.zoho.desk.connection"].create(

@@ -4,12 +4,14 @@ import json
 import logging
 import secrets
 import uuid
+from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from ..lib.attachment_policy import DEFAULT_MAX_BYTES, DEFAULT_MIME_ALLOW
 from ..lib.desk_client import DeskClient, DeskClientError
+from ..lib.desk_oauth import desk_oauth_is_rate_limited
 from ..lib.desk_hosts import desk_agent_base_url_from_custom_domain, desk_ticket_agent_url
 from ..lib.requests_transport import RequestsTransport
 from ..lib.self_client import SELF_CLIENT_SCOPE_CSV
@@ -81,6 +83,15 @@ class MpiZohoConnection(models.Model):
         "Then click Test Connection.",
     )
     refresh_token = fields.Char(groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False)
+    desk_access_token = fields.Char(
+        groups="mpi_helpdesk_zoho.group_zoho_admin", copy=False
+    )
+    desk_access_token_expires_at = fields.Datetime(copy=False)
+    desk_api_backoff_until = fields.Datetime(
+        copy=False,
+        readonly=True,
+        help="Pause Desk API calls until this time after Zoho OAuth rate limiting.",
+    )
     self_client_scopes = fields.Char(
         compute="_compute_self_client_scopes",
         string="Required permissions",
@@ -171,6 +182,61 @@ class MpiZohoConnection(models.Model):
         self.ensure_one()
         return set(self.department_map_ids.mapped("desk_department_id"))
 
+    def _desk_access_token_still_valid(self):
+        self.ensure_one()
+        token = (self.desk_access_token or "").strip()
+        expires = self.desk_access_token_expires_at
+        if not token or not expires:
+            return False
+        skew = fields.Datetime.now() + timedelta(minutes=2)
+        return expires > skew
+
+    def _desk_api_backoff_active(self):
+        self.ensure_one()
+        until = self.desk_api_backoff_until
+        return bool(until and until > fields.Datetime.now())
+
+    def _desk_store_access_token(self, token, expires_in=3600):
+        self.ensure_one()
+        seconds = max(int(expires_in or 3600) - 120, 60)
+        self.sudo().write(
+            {
+                "desk_access_token": token,
+                "desk_access_token_expires_at": fields.Datetime.now()
+                + timedelta(seconds=seconds),
+                "desk_api_backoff_until": False,
+            }
+        )
+
+    def _desk_register_oauth_backoff(self, message, *, minutes=30):
+        self.ensure_one()
+        self.sudo().write(
+            {
+                "desk_api_backoff_until": fields.Datetime.now()
+                + timedelta(minutes=minutes),
+                "last_error": message,
+            }
+        )
+
+    def _bind_desk_client_oauth(self, client):
+        self.ensure_one()
+        connection = self
+
+        def on_refreshed(token, expires_in):
+            connection._desk_store_access_token(token, expires_in)
+
+        def on_refresh_failed(payload, _response):
+            message = (
+                payload.get("error_description")
+                or payload.get("error")
+                or "Token refresh failed"
+            )
+            if desk_oauth_is_rate_limited(message):
+                connection._desk_register_oauth_backoff(message)
+
+        client._on_access_token_refreshed = on_refreshed
+        client._on_access_token_refresh_failed = on_refresh_failed
+
     def _token_client(self, transport=None):
         self.ensure_one()
         return DeskClient(
@@ -194,6 +260,7 @@ class MpiZohoConnection(models.Model):
                 _("Enter the Zoho self-client ID and secret before the Self-Client Code.")
             )
         client = self._token_client(transport=transport)
+        self._bind_desk_client_oauth(client)
         try:
             refresh = client.exchange_authorization_code(code)
         except DeskClientError as exc:
@@ -203,6 +270,14 @@ class MpiZohoConnection(models.Model):
 
     def _make_client(self, transport=None):
         self.ensure_one()
+        if self._desk_api_backoff_active():
+            raise UserError(
+                _(
+                    "Zoho temporarily limited API access (too many token requests). "
+                    "Try again after %(until)s.",
+                    until=fields.Datetime.to_string(self.desk_api_backoff_until),
+                )
+            )
         self._ensure_refresh_token(transport=transport)
         if not (self.client_id and self.client_secret and self.refresh_token and self.desk_org_id):
             raise UserError(
@@ -212,7 +287,11 @@ class MpiZohoConnection(models.Model):
                     "and a fresh Self-Client Code."
                 )
             )
-        return self._token_client(transport=transport)
+        client = self._token_client(transport=transport)
+        self._bind_desk_client_oauth(client)
+        if self._desk_access_token_still_valid():
+            client._access_token = self.desk_access_token
+        return client
 
     def _probe_tickets(self, client):
         try:
@@ -402,6 +481,21 @@ class MpiZohoConnection(models.Model):
                 continue
             try:
                 complete = sync._pull_connection(connection, backfill=True)
+            except DeskClientError as exc:
+                if desk_oauth_is_rate_limited(exc):
+                    connection._desk_register_oauth_backoff(str(exc))
+                    _logger.warning(
+                        "Backfill paused for Connection %s: Zoho OAuth rate limit (%s).",
+                        connection.id,
+                        exc,
+                    )
+                else:
+                    _logger.exception(
+                        "Backfill failed for Connection %s; will retry on next cron.",
+                        connection.id,
+                    )
+                still_pending.append(connection.id)
+                continue
             except Exception:
                 _logger.exception(
                     "Backfill failed for Connection %s; will retry on next cron.",

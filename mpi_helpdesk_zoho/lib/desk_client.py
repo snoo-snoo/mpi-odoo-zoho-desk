@@ -88,7 +88,19 @@ class DeskClient:
             )
         self.refresh_token = refresh
         self._access_token = payload.get("access_token")
+        if self._access_token:
+            self._notify_access_token(self._access_token, payload.get("expires_in") or 3600)
         return refresh
+
+    def _notify_access_token(self, token, expires_in):
+        callback = getattr(self, "_on_access_token_refreshed", None)
+        if callback:
+            callback(token, expires_in)
+
+    def _notify_refresh_failed(self, payload, response):
+        callback = getattr(self, "_on_access_token_refresh_failed", None)
+        if callback:
+            callback(payload, response)
 
     def refresh_access_token(self):
         url = "%s/oauth/v2/token" % accounts_root(self.accounts_dc)
@@ -104,11 +116,14 @@ class DeskClient:
         )
         payload = self._token_payload(response)
         if response.get("status_code", 200) >= 400 or payload.get("error"):
+            self._notify_refresh_failed(payload, response)
             self._raise_token_error("Token refresh failed", response)
         token = payload.get("access_token")
         if not token:
+            self._notify_refresh_failed(payload, response)
             self._raise_token_error("Token refresh returned no access_token", response)
         self._access_token = token
+        self._notify_access_token(token, payload.get("expires_in") or 3600)
         return token
 
     def _authed(self, method, path, **kwargs):

@@ -136,6 +136,13 @@ class MpiZohoSync(models.AbstractModel):
 
     @api.private
     def _pull_connection(self, connection, *, backfill):
+        if connection._desk_api_backoff_active():
+            _logger.info(
+                "Skipping Desk pull for Connection %s until OAuth backoff ends at %s.",
+                connection.id,
+                connection.desk_api_backoff_until,
+            )
+            return False
         client = connection._make_client()
         cutoff = None
         if backfill and connection.backfill_mode == "lookback":
