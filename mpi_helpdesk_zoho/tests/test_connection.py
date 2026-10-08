@@ -1,5 +1,8 @@
 # Part of mpi_helpdesk_zoho. See LICENSE file for full copyright and licensing details.
 
+from unittest.mock import patch
+
+from odoo.exceptions import UserError
 from odoo.tests import HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
 
@@ -56,6 +59,44 @@ class TestConnection(TransactionCase):
         )
         self.assertEqual(len(outbox), 1)
         self.assertTrue(self.env.cr.precommit.data.get("mpi.zoho.desk.catchup_scheduled"))
+
+    def test_backfill_button_queues_cron_instead_of_inline_sync(self):
+        connection = self.env["mpi.zoho.desk.connection"].create(
+            {
+                "name": "Desk EU",
+                "desk_org_id": "1",
+                "company_id": self.env.company.id,
+                "state": "verified",
+            }
+        )
+        self.env["mpi.zoho.desk.department.map"].create(
+            {
+                "connection_id": connection.id,
+                "desk_department_id": "D1",
+                "desk_department_name": "Support",
+            }
+        )
+        with patch.object(
+            type(connection), "_sync_from_desk", autospec=True
+        ) as fake_sync, patch.object(
+            type(connection), "_schedule_catchup_once", autospec=True
+        ):
+            action = connection.action_backfill()
+        fake_sync.assert_not_called()
+        self.assertIn(connection.id, connection._pending_backfill_connection_ids())
+        self.assertEqual(action.get("tag"), "display_notification")
+
+    def test_backfill_requires_department_map(self):
+        connection = self.env["mpi.zoho.desk.connection"].create(
+            {
+                "name": "Desk EU",
+                "desk_org_id": "1",
+                "company_id": self.env.company.id,
+                "state": "verified",
+            }
+        )
+        with self.assertRaises(UserError):
+            connection.action_backfill()
 
     def test_unmapped_team_does_not_queue(self):
         self.env["mpi.zoho.desk.connection"].create(

@@ -22,6 +22,8 @@ from ..lib.sync_pull import (
     partner_cache_key,
     should_sync_side_content,
 )
+
+from psycopg2 import IntegrityError, InterfaceError, OperationalError
 from ..lib.sync_scope import allows_inbound
 from ..lib.ticket_fields import apply_desk_wins
 
@@ -35,13 +37,83 @@ class MpiZohoSync(models.AbstractModel):
     def _cron_keep_going(self, done=1, remaining=None):
         if not self.env.context.get("cron_id"):
             return True
+        if getattr(self.env.cr, "closed", False):
+            return False
         cron = self.env["ir.cron"]
         if not hasattr(cron, "_commit_progress"):
             return True
         kwargs = {}
         if remaining is not None:
             kwargs["remaining"] = remaining
-        return bool(cron._commit_progress(done, **kwargs))
+        try:
+            return bool(cron._commit_progress(done, **kwargs))
+        except InterfaceError:
+            return False
+
+    def _is_fatal_db_error(self, exc):
+        if isinstance(exc, (InterfaceError, OperationalError)):
+            return True
+        if getattr(self.env.cr, "closed", False):
+            return True
+        return getattr(exc, "pgcode", None) == "57014"
+
+    def _desk_ticket_mapping(self, connection, desk_id, desk_map_cache=None):
+        if desk_map_cache is not None:
+            cached = desk_map_cache.get(desk_id)
+            if cached is not None and cached:
+                return cached
+        mapping = self.env["mpi.zoho.desk.ticket.map"].search(
+            [("connection_id", "=", connection.id), ("desk_ticket_id", "=", desk_id)],
+            limit=1,
+        )
+        if desk_map_cache is not None and mapping:
+            desk_map_cache[desk_id] = mapping
+        return mapping
+
+    def _claim_desk_ticket_mapping(self, connection, desk_id, desk_map_cache=None):
+        mapping = self._desk_ticket_mapping(connection, desk_id, desk_map_cache)
+        if mapping:
+            return mapping
+        TicketMap = self.env["mpi.zoho.desk.ticket.map"]
+        vals = {
+            "connection_id": connection.id,
+            "desk_ticket_id": desk_id,
+        }
+        try:
+            with self.env.cr.savepoint():
+                mapping = TicketMap.create(vals)
+        except IntegrityError:
+            mapping = self._desk_ticket_mapping(connection, desk_id, desk_map_cache)
+            if not mapping:
+                raise
+        if desk_map_cache is not None:
+            desk_map_cache[desk_id] = mapping
+        return mapping
+
+    def _link_helpdesk_ticket_to_mapping(self, mapping, ticket):
+        if mapping.helpdesk_ticket_id:
+            return mapping.helpdesk_ticket_id
+        try:
+            with self.env.cr.savepoint():
+                mapping.helpdesk_ticket_id = ticket
+        except IntegrityError:
+            existing = self.env["mpi.zoho.desk.ticket.map"].search(
+                [("helpdesk_ticket_id", "=", ticket.id)],
+                limit=1,
+            )
+            if existing and existing != mapping:
+                _logger.warning(
+                    "Helpdesk ticket %s is already mapped to Desk ticket %s; "
+                    "keeping Desk ticket %s on this row.",
+                    ticket.id,
+                    existing.desk_ticket_id,
+                    mapping.desk_ticket_id,
+                )
+                return existing.helpdesk_ticket_id
+            mapping = self._desk_ticket_mapping(
+                mapping.connection_id, mapping.desk_ticket_id
+            )
+        return mapping.helpdesk_ticket_id or ticket
 
     @api.private
     def _pull_connection(self, connection, *, backfill):
@@ -52,14 +124,16 @@ class MpiZohoSync(models.AbstractModel):
         department_ids = sorted(connection._mapped_department_ids())
         if not department_ids:
             connection._notify_pull_skipped_no_department_map()
-            return
+            return True
         partner_cache = {}
+        desk_map_cache = {}
         start = 1
         page_size = PAGE_SIZE
         batch = 0
         commit_every = commit_batch_size(
             backfill=backfill, cron_id=self.env.context.get("cron_id")
         )
+        stopped_early = False
         while True:
             params = list_ticket_params(
                 start=start,
@@ -80,23 +154,32 @@ class MpiZohoSync(models.AbstractModel):
                         row,
                         backfill=backfill,
                         partner_cache=partner_cache,
+                        desk_map_cache=desk_map_cache,
                     )
                 except Exception as exc:
-                    _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
-                    if self._sync_abort_pull(exc):
+                    if self._is_fatal_db_error(exc) or self._sync_abort_pull(exc):
+                        _logger.exception(
+                            "Ticket Sync aborted for Desk ticket %s", row.get("id")
+                        )
                         raise
+                    _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
                 batch += 1
                 if batch >= commit_every:
                     if not self._cron_keep_going(batch):
-                        return
+                        stopped_early = True
+                        break
                     batch = 0
+            if stopped_early:
+                break
             if len(tickets) < page_size:
                 break
             start += len(tickets)
             if not backfill and start > CATCHUP_TICKET_CAP:
                 break
-        if batch:
-            self._cron_keep_going(batch)
+        if batch and not stopped_early:
+            if not self._cron_keep_going(batch):
+                stopped_early = True
+        return not stopped_early
 
     @staticmethod
     def _sync_abort_pull(exc):
@@ -123,6 +206,7 @@ class MpiZohoSync(models.AbstractModel):
         backfill=False,
         force_side_content=False,
         partner_cache=None,
+        desk_map_cache=None,
     ):
         department_id = str(row.get("departmentId") or row.get("department", {}).get("id") or "")
         if not allows_inbound(
@@ -132,9 +216,7 @@ class MpiZohoSync(models.AbstractModel):
             return
         desk_id = str(row.get("id"))
         incoming_hash = payload_hash(row)
-        mapping = self.env["mpi.zoho.desk.ticket.map"].search(
-            [("connection_id", "=", connection.id), ("desk_ticket_id", "=", desk_id)], limit=1
-        )
+        mapping = self._desk_ticket_mapping(connection, desk_id, desk_map_cache)
         if mapping:
             origin = mapping.last_origin or "desk"
             if not should_apply(
@@ -145,23 +227,16 @@ class MpiZohoSync(models.AbstractModel):
                 if origin == "connector":
                     mapping.last_origin = "desk"
                 return
+        else:
+            mapping = self._claim_desk_ticket_mapping(connection, desk_id, desk_map_cache)
         detail = client.get_ticket(desk_id)
-        ticket = mapping.helpdesk_ticket_id if mapping and mapping.helpdesk_ticket_id else False
+        ticket = mapping.helpdesk_ticket_id or False
         is_new = not ticket
         if not ticket:
             ticket = self._create_helpdesk_ticket(
                 connection, detail, partner_cache=partner_cache
             )
-        if mapping and not mapping.helpdesk_ticket_id:
-            mapping.helpdesk_ticket_id = ticket
-        if not mapping:
-            mapping = self.env["mpi.zoho.desk.ticket.map"].create(
-                {
-                    "connection_id": connection.id,
-                    "helpdesk_ticket_id": ticket.id,
-                    "desk_ticket_id": desk_id,
-                }
-            )
+            ticket = self._link_helpdesk_ticket_to_mapping(mapping, ticket)
             is_new = True
         values = self._desk_to_helpdesk_values(connection, detail)
         ticket.with_context(mpi_zoho_skip_outbox=True).write(values)

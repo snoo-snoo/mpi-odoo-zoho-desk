@@ -263,6 +263,15 @@ class MpiZohoConnection(models.Model):
 
     def action_backfill(self):
         for connection in self:
+            if connection.state != "verified":
+                raise UserError(_("Verify the Connection before running Backfill."))
+            if not connection._mapped_department_ids():
+                raise UserError(
+                    _(
+                        "Add at least one Department Map before Backfill. "
+                        "Inbound Ticket Sync needs a mapped Desk department."
+                    )
+                )
             connection._schedule_backfill_once()
         return {
             "type": "ir.actions.client",
@@ -271,7 +280,8 @@ class MpiZohoConnection(models.Model):
                 "title": _("Backfill scheduled"),
                 "message": _(
                     "Ticket Sync backfill runs on the catch-up cron so the request "
-                    "does not hit the 15-minute web time limit."
+                    "does not hit the 15-minute web time limit. Large histories "
+                    "may take several cron runs."
                 ),
                 "type": "success",
                 "sticky": False,
@@ -292,7 +302,8 @@ class MpiZohoConnection(models.Model):
 
     @api.model
     def _cron_catch_up(self):
-        self._cron_process_pending_backfill()
+        if self._cron_process_pending_backfill():
+            return
         self.search([("active", "=", True), ("state", "=", "verified")]).action_catch_up()
 
     @api.model
@@ -318,28 +329,36 @@ class MpiZohoConnection(models.Model):
         param.set_param(_PENDING_BACKFILL_PARAM, json.dumps(sorted(pending)))
 
     @api.model
-    def _pop_pending_backfill_connection_ids(self):
-        pending = self._pending_backfill_connection_ids()
-        self.env["ir.config_parameter"].sudo().set_param(_PENDING_BACKFILL_PARAM, "[]")
-        return pending
+    def _set_pending_backfill_connection_ids(self, connection_ids):
+        self.env["ir.config_parameter"].sudo().set_param(
+            _PENDING_BACKFILL_PARAM,
+            json.dumps(sorted(set(connection_ids))),
+        )
 
     @api.model
     def _cron_process_pending_backfill(self):
-        pending_ids = self._pop_pending_backfill_connection_ids()
+        """Run queued Backfills. Returns True when work remains or was attempted."""
+        pending_ids = self._pending_backfill_connection_ids()
         if not pending_ids:
-            return
+            return False
+        still_pending = []
+        sync = self.env["mpi.zoho.desk.sync"]
         for connection in self.browse(pending_ids).exists():
-            if not (connection.active and connection.state == "verified"):
+            if not connection.active or connection.state != "verified":
                 continue
             try:
-                connection._sync_from_desk(backfill=True)
+                complete = sync._pull_connection(connection, backfill=True)
             except Exception:
                 _logger.exception(
-                    "Desk backfill failed for Connection %s; re-queued for cron",
+                    "Backfill failed for Connection %s; will retry on next cron.",
                     connection.id,
                 )
-                self._enqueue_pending_backfill([connection.id])
-                raise
+                still_pending.append(connection.id)
+                continue
+            if not complete:
+                still_pending.append(connection.id)
+        self._set_pending_backfill_connection_ids(still_pending)
+        return bool(still_pending)
 
     def _notify_pull_skipped_no_department_map(self):
         self.ensure_one()
@@ -377,7 +396,7 @@ class MpiZohoConnection(models.Model):
 
     def _sync_from_desk(self, *, backfill):
         self.ensure_one()
-        self.env["mpi.zoho.desk.sync"]._pull_connection(self, backfill=backfill)
+        return self.env["mpi.zoho.desk.sync"]._pull_connection(self, backfill=backfill)
 
     def _process_outbox(self):
         self.ensure_one()
