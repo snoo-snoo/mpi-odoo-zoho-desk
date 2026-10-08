@@ -76,6 +76,15 @@ class MpiZohoSync(models.AbstractModel):
             return True
         return getattr(exc, "pgcode", None) == "57014"
 
+    @staticmethod
+    def _is_transient_desk_error(exc):
+        if isinstance(exc, DeskClientError):
+            message = str(exc).lower()
+            return exc.status_code is None and (
+                "timed out" in message or "timeout" in message
+            )
+        return False
+
     def _desk_ticket_mapping(self, connection, desk_id, desk_map_cache=None):
         if desk_map_cache is not None:
             cached = desk_map_cache.get(desk_id)
@@ -188,7 +197,14 @@ class MpiZohoSync(models.AbstractModel):
                             "Ticket Sync aborted for Desk ticket %s", row.get("id")
                         )
                         raise
-                    _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
+                    if self._is_transient_desk_error(exc):
+                        _logger.warning(
+                            "Ticket Sync skipped Desk ticket %s (transient Desk API error): %s",
+                            row.get("id"),
+                            exc,
+                        )
+                    else:
+                        _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
                 batch += 1
                 if batch >= commit_every:
                     if not self._cron_keep_going(batch):

@@ -2,6 +2,8 @@
 
 """requests-based transport for DeskClient."""
 
+from .desk_client import DeskClientError
+
 
 class RequestsTransport:
     def __init__(self, timeout=30):
@@ -10,16 +12,25 @@ class RequestsTransport:
     def request(self, method, url, *, headers=None, json_body=None, params=None, data=None, files=None):
         import requests
 
-        response = requests.request(
-            method,
-            url,
-            headers=headers,
-            json=json_body,
-            params=params,
-            data=data,
-            files=files,
-            timeout=self.timeout,
-        )
+        try:
+            response = requests.request(
+                method,
+                url,
+                headers=headers,
+                json=json_body,
+                params=params,
+                data=data,
+                files=files,
+                timeout=self.timeout,
+            )
+        except requests.exceptions.Timeout as exc:
+            raise DeskClientError(
+                "Desk API %s %s timed out after %ss" % (method, url, self.timeout),
+                None,
+                None,
+            ) from exc
+        except requests.exceptions.RequestException as exc:
+            raise DeskClientError("Desk API %s %s failed: %s" % (method, url, exc), None, None) from exc
         payload = None
         if response.content:
             try:
