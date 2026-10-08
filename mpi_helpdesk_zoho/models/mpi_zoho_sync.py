@@ -3,8 +3,11 @@
 import logging
 from datetime import timedelta
 
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import html_sanitize
 from ..lib.attachment_policy import decide_attachment
 from ..lib.desk_attachments import (
     desk_attachment_download_url,
@@ -537,6 +540,31 @@ class MpiZohoSync(models.AbstractModel):
             partner_cache[cache_key] = partner
         return partner
 
+    def _desk_chatter_body_stored_as_escaped_html(self, message):
+        body = str(message.body or "")
+        return "&lt;div" in body or "&lt;span" in body or "&lt;p" in body
+
+    def _desk_chatter_body_from_thread(self, client, thread, *, mapping, desk_id, mail_message=None):
+        raw = thread_body(thread) or ""
+        if not str(raw).strip():
+            return Markup("")
+        if "<" in str(raw):
+            safe = html_sanitize(raw)
+            if mail_message and mapping:
+                embedded = embed_desk_inline_images(
+                    self.env,
+                    client,
+                    safe,
+                    res_model="mail.message",
+                    res_id=mail_message.id,
+                    desk_ticket_id=desk_id or mapping.desk_ticket_id,
+                )
+                if embedded:
+                    safe = embedded
+            return Markup(safe)
+        escaped = html_sanitize(str(raw)).replace("\n", "<br/>")
+        return Markup(escaped)
+
     def _sync_threads_in(
         self, connection, client, mapping, desk_id, *, threads=None, defer_binaries=False
     ):
@@ -558,6 +586,19 @@ class MpiZohoSync(models.AbstractModel):
                 limit=1,
             )
             if comment_map.mail_message_id:
+                message = comment_map.mail_message_id
+                if self._desk_chatter_body_stored_as_escaped_html(message):
+                    message.with_context(mpi_zoho_skip_outbox=True).write(
+                        {
+                            "body": self._desk_chatter_body_from_thread(
+                                client,
+                                thread,
+                                mapping=mapping,
+                                desk_id=desk_id,
+                                mail_message=message,
+                            )
+                        }
+                    )
                 self._sync_attachments_on_known_thread(
                     connection,
                     client,
@@ -581,11 +622,24 @@ class MpiZohoSync(models.AbstractModel):
             )
             raw_time = thread.get("sendDateTime") or thread.get("createdTime")
             message = mapping.helpdesk_ticket_id.with_context(mpi_zoho_skip_outbox=True).message_post(
-                body=thread_body(thread) or "",
+                body=self._desk_chatter_body_from_thread(
+                    client, thread, mapping=mapping, desk_id=desk_id
+                ),
                 subtype_xmlid=subtype,
                 message_type="comment",
                 attachment_ids=attachment_ids or False,
                 date=fields.Datetime.to_string(self._parse_desk_dt(raw_time)),
+            )
+            message.with_context(mpi_zoho_skip_outbox=True).write(
+                {
+                    "body": self._desk_chatter_body_from_thread(
+                        client,
+                        thread,
+                        mapping=mapping,
+                        desk_id=desk_id,
+                        mail_message=message,
+                    )
+                }
             )
             if comment_map:
                 comment_map.write({"mail_message_id": message.id})
