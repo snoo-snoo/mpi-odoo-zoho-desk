@@ -2,7 +2,34 @@
 
 """Desk thread list rows and ticket description text."""
 
+import re
 from datetime import datetime
+
+_IMG_TAG = re.compile(r"<img\b[^>]*>", re.I)
+_INLINE_IMAGES_IN_HTML = re.compile(
+    r'(?:https?://[^"\s>]+)?/api/v1/threads/\d+/inlineImages/[^"\s>]+',
+    re.I,
+)
+_INLINE_IMAGE_TOKEN = re.compile(
+    r"(?:/api/v1/threads/\d+/inlineImages/)?"
+    r"[a-z0-9]{40,}(?:\?[a-z0-9=&_.]+)?(?:\.png|\.jpg|\.gif)?",
+    re.I,
+)
+_FOOTNOTE_BLOCK = re.compile(
+    r"\n\[\d+\]\s+[^\n]+(?:\n\[\d+\]\s+[^\n]+)*\s*$",
+    re.I,
+)
+_SIGNATURE_START = re.compile(
+    r"(?:"
+    r"Meilleures salutations|Mit freundlichen Grüßen|Mit freundlichen Gruessen|"
+    r"Best regards|Kind regards|Cordialement|Salutations distinguées|"
+    r"Viele Grüße|Freundliche Grüße"
+    r")\b",
+    re.I,
+)
+_TRAILING_URL = re.compile(r"\s+(?:https?://\S+|www\.\S+)\s*$", re.I)
+_WHITESPACE = re.compile(r"[ \t]+\n")
+_MULTI_NL = re.compile(r"\n{3,}")
 
 
 def desk_thread_datetime(thread):
@@ -45,4 +72,49 @@ def thread_body(thread):
     summary = str(thread.get("summary") or "").strip()
     if summary and not is_truncated_desk_summary(summary):
         return summary
+    return False
+
+
+def prepare_desk_html_for_plaintext(html):
+    """Drop inline images before html2plaintext (Desk embeds huge token URLs in HTML)."""
+    text = str(html or "")
+    text = _IMG_TAG.sub(" ", text)
+    text = _INLINE_IMAGES_IN_HTML.sub(" ", text)
+    return text
+
+
+def postprocess_desk_plaintext(plain):
+    """Readable helpdesk description: no Desk inline-image tokens or email footers."""
+    text = str(plain or "").strip()
+    if not text:
+        return False
+    text = _INLINE_IMAGE_TOKEN.sub(" ", text)
+    text = re.sub(r"\bNone\b", " ", text)
+    text = re.sub(r"\[\d+\](?=\s|$)", " ", text)
+    sig = _SIGNATURE_START.search(text)
+    if sig:
+        text = text[: sig.start()]
+    text = _FOOTNOTE_BLOCK.sub("", text)
+    while True:
+        trimmed = _TRAILING_URL.sub("", text)
+        if trimmed == text:
+            break
+        text = trimmed
+    text = _WHITESPACE.sub("\n", text)
+    text = _MULTI_NL.sub("\n\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip() or False
+
+
+def desk_plaintext_looks_corrupted(text):
+    """True when a stored description still has Desk inline-image or footer junk."""
+    raw = str(text or "")
+    if not raw:
+        return False
+    if "/inlineImages/" in raw or "/api/v1/threads/" in raw:
+        return True
+    if _INLINE_IMAGE_TOKEN.search(raw):
+        return True
+    if re.search(r"\bNone\b.*\[\d+\]", raw):
+        return True
     return False

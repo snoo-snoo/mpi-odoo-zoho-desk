@@ -16,7 +16,10 @@ from ..lib.comment_visibility import desk_thread_to_odoo, odoo_message_to_desk
 from ..lib.desk_client import DeskClientError
 from ..lib.desk_contact import desk_contact_identity, partner_display_name
 from ..lib.desk_threads import (
+    desk_plaintext_looks_corrupted,
     is_truncated_desk_summary,
+    postprocess_desk_plaintext,
+    prepare_desk_html_for_plaintext,
     sort_threads_for_chatter,
     thread_body,
 )
@@ -296,8 +299,10 @@ class MpiZohoSync(models.AbstractModel):
     def _desk_description_plaintext(self, text):
         if not text:
             return False
-        plain = html2plaintext(str(text)).strip()
-        return plain or str(text).strip()
+        prepared = prepare_desk_html_for_plaintext(text)
+        plain = html2plaintext(prepared).strip()
+        plain = postprocess_desk_plaintext(plain) or plain
+        return plain or False
 
     def _desk_ticket_description_text(self, client, desk_id, detail, threads):
         raw = (detail.get("description") or "").strip()
@@ -319,6 +324,8 @@ class MpiZohoSync(models.AbstractModel):
         if not current:
             return True
         if current.rstrip().endswith("...") or current.rstrip().endswith("…"):
+            return True
+        if desk_plaintext_looks_corrupted(current):
             return True
         return len(new) > len(current) + 40
 
