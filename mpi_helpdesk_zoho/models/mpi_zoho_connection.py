@@ -262,9 +262,21 @@ class MpiZohoConnection(models.Model):
         return True
 
     def action_backfill(self):
-        self.ensure_one()
-        self._sync_from_desk(backfill=True)
-        return True
+        for connection in self:
+            connection._schedule_backfill_once()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Backfill scheduled"),
+                "message": _(
+                    "Ticket Sync backfill runs on the catch-up cron so the request "
+                    "does not hit the 15-minute web time limit."
+                ),
+                "type": "success",
+                "sticky": False,
+            },
+        }
 
     def action_catch_up(self):
         now = fields.Datetime.now()

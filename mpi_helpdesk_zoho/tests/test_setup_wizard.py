@@ -131,6 +131,14 @@ class TestSetupWizard(TransactionCase):
         Connection = self.env["mpi.zoho.desk.connection"]
         self.assertIn(connection.id, Connection._pending_backfill_connection_ids())
 
+    def test_backfill_button_schedules_cron(self):
+        connection = self._connection()
+        with patch.object(type(connection), "_sync_from_desk", autospec=True) as fake_sync:
+            connection.action_backfill()
+        fake_sync.assert_not_called()
+        Connection = self.env["mpi.zoho.desk.connection"]
+        self.assertIn(connection.id, Connection._pending_backfill_connection_ids())
+
     def test_inbound_uses_paired_team(self):
         connection = self._connection()
         team = self.env["helpdesk.team"].create(
