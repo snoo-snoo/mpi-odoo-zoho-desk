@@ -33,6 +33,7 @@ from ..lib.priority import desk_to_helpdesk, helpdesk_to_desk
 from ..lib.source_removal import other_side_action
 from ..lib.sync_pull import (
     CATCHUP_TICKET_CAP,
+    COMMIT_EVERY,
     PAGE_SIZE,
     commit_batch_size,
     defer_attachment_binaries,
