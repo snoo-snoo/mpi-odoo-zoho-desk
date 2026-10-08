@@ -1,6 +1,7 @@
 # Part of mpi_helpdesk_zoho. See LICENSE file for full copyright and licensing details.
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 from ..lib.source_removal import other_side_action
 from ..lib.sync_scope import allows_outbound
@@ -11,6 +12,9 @@ class HelpdeskTicket(models.Model):
 
     mpi_zoho_map_ids = fields.One2many("mpi.zoho.desk.ticket.map", "helpdesk_ticket_id")
     mpi_zoho_desk_ticket_id = fields.Char(compute="_compute_mpi_zoho", string="Desk ticket")
+    mpi_zoho_desk_ticket_url = fields.Char(
+        compute="_compute_mpi_zoho_desk_ticket_url", string="Desk ticket link"
+    )
     mpi_zoho_source_removed = fields.Boolean(compute="_compute_mpi_zoho", string="Removed at source")
 
     @api.depends("mpi_zoho_map_ids.desk_ticket_id", "mpi_zoho_map_ids.source_removed")
@@ -19,6 +23,36 @@ class HelpdeskTicket(models.Model):
             mapping = ticket.mpi_zoho_map_ids[:1]
             ticket.mpi_zoho_desk_ticket_id = mapping.desk_ticket_id if mapping else False
             ticket.mpi_zoho_source_removed = mapping.source_removed if mapping else False
+
+    @api.depends(
+        "mpi_zoho_map_ids.desk_ticket_id",
+        "mpi_zoho_map_ids.connection_id.desk_dc",
+        "mpi_zoho_map_ids.connection_id.desk_agent_portal",
+    )
+    def _compute_mpi_zoho_desk_ticket_url(self):
+        for ticket in self:
+            ticket.mpi_zoho_desk_ticket_url = False
+            mapping = ticket.mpi_zoho_map_ids[:1]
+            if mapping and mapping.desk_ticket_id:
+                ticket.mpi_zoho_desk_ticket_url = mapping.connection_id.desk_ticket_url(
+                    mapping.desk_ticket_id
+                )
+
+    def action_open_mpi_zoho_desk_ticket(self):
+        self.ensure_one()
+        if not self.mpi_zoho_desk_ticket_url:
+            raise UserError(
+                _(
+                    "This ticket has no Desk link yet. On the Connection, run "
+                    "Test Connection so the Desk agent portal is filled in, or "
+                    "enter Desk agent portal manually."
+                )
+            )
+        return {
+            "type": "ir.actions.act_url",
+            "url": self.mpi_zoho_desk_ticket_url,
+            "target": "new",
+        }
 
     def _mpi_zoho_connection(self):
         self.ensure_one()

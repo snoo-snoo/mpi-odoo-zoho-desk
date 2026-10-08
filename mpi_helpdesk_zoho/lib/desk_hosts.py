@@ -31,3 +31,12 @@ def desk_root(dc):
 
 def accounts_root(dc):
     return ACCOUNTS_ROOTS.get(dc, ACCOUNTS_ROOTS["com"])
+
+
+def desk_ticket_agent_url(dc, agent_portal, desk_ticket_id):
+    """Agent UI deep link for a Desk ticket (requires the portal segment from the Desk URL)."""
+    portal = (agent_portal or "").strip().strip("/")
+    ticket_id = (desk_ticket_id or "").strip()
+    if not portal or not ticket_id:
+        return False
+    return "%s/agent/%s/tickets/details/%s" % (desk_root(dc), portal, ticket_id)

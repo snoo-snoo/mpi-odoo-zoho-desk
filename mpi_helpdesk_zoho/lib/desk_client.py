@@ -142,6 +142,9 @@ class DeskClient:
     def list_tickets(self, **params):
         return self._authed("GET", "/tickets", params=params)
 
+    def list_organizations(self, **params):
+        return self._authed("GET", "/organizations", params=params)
+
     def _list_paginated(self, path, **params):
         """Collect all pages from a Desk list endpoint. Yields each row."""
         start = 0
@@ -248,8 +251,19 @@ class DeskClient:
     def update_ticket(self, ticket_id, values):
         return self._authed("PATCH", "/tickets/%s" % ticket_id, json_body=values)
 
-    def list_threads(self, ticket_id):
-        return self._authed("GET", "/tickets/%s/threads" % ticket_id)
+    def list_threads(self, ticket_id, **params):
+        return list(self._list_paginated("/tickets/%s/threads" % ticket_id, **params))
+
+    def get_thread(self, ticket_id, thread_id):
+        page = self._authed("GET", "/tickets/%s/threads/%s" % (ticket_id, thread_id))
+        if isinstance(page, dict) and page.get("id"):
+            return page
+        if isinstance(page, dict):
+            return page.get("data") or page
+        return page
+
+    def list_ticket_attachments(self, ticket_id, **params):
+        return list(self._list_paginated("/tickets/%s/attachments" % ticket_id, **params))
 
     def add_thread(self, ticket_id, content, *, is_public=True):
         return self._authed(
@@ -258,8 +272,12 @@ class DeskClient:
             json_body={"content": content, "isPublic": is_public, "channel": "API"},
         )
 
-    def list_attachments(self, ticket_id):
-        return self._authed("GET", "/tickets/%s/attachments" % ticket_id)
+    def list_attachments(self, ticket_id, **params):
+        """Return one page of ticket attachments (legacy callers)."""
+        page_params = dict(params)
+        page_params.setdefault("from", 0)
+        page_params.setdefault("limit", 50)
+        return self._authed("GET", "/tickets/%s/attachments" % ticket_id, params=page_params)
 
     def add_attachment(self, ticket_id, filename, content, mimetype):
         return self._authed(

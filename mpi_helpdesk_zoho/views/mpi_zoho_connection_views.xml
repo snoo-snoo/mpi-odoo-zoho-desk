@@ -38,6 +38,7 @@
                         </group>
                         <group>
                             <field name="desk_org_id"/>
+                            <field name="desk_agent_portal"/>
                             <field name="desk_dc"/>
                             <field name="accounts_dc"/>
                         </group>

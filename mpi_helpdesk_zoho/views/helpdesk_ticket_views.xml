@@ -7,7 +7,14 @@
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="inside">
                 <group string="Zoho Desk" name="mpi_zoho_desk">
-                    <field name="mpi_zoho_desk_ticket_id"/>
+                    <field name="mpi_zoho_desk_ticket_url" invisible="1"/>
+                    <label for="mpi_zoho_desk_ticket_id"/>
+                    <div class="o_row">
+                        <field name="mpi_zoho_desk_ticket_id" nolabel="1" readonly="1"/>
+                        <button name="action_open_mpi_zoho_desk_ticket" type="object"
+                                string="Open in Zoho Desk" icon="fa-external-link"
+                                class="btn-link" invisible="not mpi_zoho_desk_ticket_url"/>
+                    </div>
                     <field name="mpi_zoho_source_removed"/>
                 </group>
             </xpath>
