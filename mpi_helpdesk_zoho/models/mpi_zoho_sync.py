@@ -3,7 +3,8 @@
 import logging
 from datetime import timedelta
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 from ..lib.attachment_policy import decide_attachment
 from ..lib.desk_attachments import (
     desk_attachment_download_url,
@@ -217,6 +218,7 @@ class MpiZohoSync(models.AbstractModel):
         *,
         backfill=False,
         force_side_content=False,
+        force_apply=False,
         partner_cache=None,
         desk_map_cache=None,
     ):
@@ -230,7 +232,7 @@ class MpiZohoSync(models.AbstractModel):
         incoming_hash = payload_hash(row)
         mapping = self._desk_ticket_mapping(connection, desk_id, desk_map_cache)
         apply_ticket_fields = True
-        if mapping:
+        if mapping and not force_apply:
             origin = mapping.last_origin or "desk"
             if not should_apply(
                 origin=origin,
@@ -292,6 +294,41 @@ class MpiZohoSync(models.AbstractModel):
                 detail,
                 defer_binaries=defer,
             )
+
+    def resync_desk_ticket(self, connection, desk_ticket_id):
+        """Pull one Desk ticket now (fields, description, threads, attachments)."""
+        connection = connection.sudo()
+        desk_id = str(desk_ticket_id or "").strip()
+        if not desk_id:
+            return False
+        client = connection._make_client()
+        try:
+            detail = client.get_ticket(desk_id)
+        except DeskClientError as exc:
+            raise UserError(_("Could not load Desk ticket %s: %s") % (desk_id, exc)) from exc
+        department_id = str(
+            detail.get("departmentId") or detail.get("department", {}).get("id") or ""
+        )
+        if not allows_inbound(
+            department_id=department_id,
+            mapped_department_ids=connection._mapped_department_ids(),
+        ):
+            raise UserError(
+                _(
+                    "This ticket's Desk department is not mapped for inbound sync. "
+                    "Add it on the Connection Department Map."
+                )
+            )
+        self._apply_desk_ticket(
+            connection,
+            client,
+            detail,
+            backfill=False,
+            force_side_content=True,
+            force_apply=True,
+        )
+        return True
+
     def _desk_ticket_description_html(self, client, desk_id, detail, threads):
         raw = (detail.get("description") or "").strip()
         if raw and not is_truncated_desk_summary(raw):

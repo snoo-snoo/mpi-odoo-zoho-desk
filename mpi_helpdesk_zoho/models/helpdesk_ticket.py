@@ -39,6 +39,28 @@ class HelpdeskTicket(models.Model):
                     mapping.desk_ticket_id
                 )
 
+    def action_mpi_zoho_resync_from_desk(self):
+        self.ensure_one()
+        mapping = self.mpi_zoho_map_ids[:1]
+        if not mapping or not mapping.desk_ticket_id:
+            raise UserError(_("This ticket is not linked to a Zoho Desk ticket yet."))
+        connection = mapping.connection_id
+        if connection.state != "verified":
+            raise UserError(_("Verify the Zoho Desk Connection before resyncing tickets."))
+        self.env["mpi.zoho.desk.sync"].sudo().resync_desk_ticket(
+            connection, mapping.desk_ticket_id
+        )
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": _("Desk resync"),
+                "message": _("This ticket was refreshed from Zoho Desk."),
+                "type": "success",
+                "sticky": False,
+            },
+        }
+
     def action_open_mpi_zoho_desk_ticket(self):
         self.ensure_one()
         if not self.mpi_zoho_desk_ticket_url:
