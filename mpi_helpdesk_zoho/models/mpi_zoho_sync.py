@@ -276,7 +276,7 @@ class MpiZohoSync(models.AbstractModel):
                 backfill=backfill,
                 force_side_content=force_side_content,
             )
-            or self._mapping_needs_side_content(mapping)
+            or self._mapping_needs_side_content(mapping, threads=threads)
         )
         if sync_side_content:
             defer = defer_attachment_binaries(backfill=backfill)
@@ -374,15 +374,22 @@ class MpiZohoSync(models.AbstractModel):
             return True
         return len(new) > len(current) + 40
 
-    def _mapping_needs_side_content(self, mapping):
+    def _mapping_needs_side_content(self, mapping, *, threads=None):
         if not mapping or not mapping.helpdesk_ticket_id:
             return False
-        return (
-            self.env["mpi.zoho.desk.comment.map"].search_count(
-                [("ticket_map_id", "=", mapping.id)], limit=1
-            )
-            == 0
+        comment_maps = self.env["mpi.zoho.desk.comment.map"].search(
+            [("ticket_map_id", "=", mapping.id)]
         )
+        if not comment_maps:
+            return True
+        if any(not row.mail_message_id for row in comment_maps):
+            return True
+        if threads is not None:
+            desk_thread_ids = {str(row.get("id")) for row in threads if row.get("id")}
+            mapped_thread_ids = set(comment_maps.mapped("desk_thread_id"))
+            if desk_thread_ids - mapped_thread_ids:
+                return True
+        return False
 
     def _resolve_thread(self, client, desk_id, thread):
         thread_id = thread.get("id")
@@ -536,17 +543,7 @@ class MpiZohoSync(models.AbstractModel):
         threads = threads if threads is not None else client.list_threads(desk_id)
         threads = sort_threads_for_chatter(threads)
         ticket_attachments_by_thread = self._ticket_attachments_by_thread(client, desk_id)
-        thread_ids = [str(thread.get("id") or "") for thread in threads if thread.get("id")]
-        known = set(
-            self.env["mpi.zoho.desk.comment.map"]
-            .search(
-                [
-                    ("ticket_map_id", "=", mapping.id),
-                    ("desk_thread_id", "in", thread_ids),
-                ]
-            )
-            .mapped("desk_thread_id")
-        ) if thread_ids else set()
+        CommentMap = self.env["mpi.zoho.desk.comment.map"]
         for thread in threads:
             thread_id = str(thread.get("id") or "")
             if not thread_id:
@@ -556,7 +553,11 @@ class MpiZohoSync(models.AbstractModel):
                 thread.get("attachments") or [],
                 ticket_attachments_by_thread.get(thread_id) or [],
             )
-            if thread_id in known:
+            comment_map = CommentMap.search(
+                [("ticket_map_id", "=", mapping.id), ("desk_thread_id", "=", thread_id)],
+                limit=1,
+            )
+            if comment_map.mail_message_id:
                 self._sync_attachments_on_known_thread(
                     connection,
                     client,
@@ -586,13 +587,16 @@ class MpiZohoSync(models.AbstractModel):
                 attachment_ids=attachment_ids or False,
                 date=fields.Datetime.to_string(self._parse_desk_dt(raw_time)),
             )
-            self.env["mpi.zoho.desk.comment.map"].create(
-                {
-                    "ticket_map_id": mapping.id,
-                    "desk_thread_id": thread_id,
-                    "mail_message_id": message.id,
-                }
-            )
+            if comment_map:
+                comment_map.write({"mail_message_id": message.id})
+            else:
+                CommentMap.create(
+                    {
+                        "ticket_map_id": mapping.id,
+                        "desk_thread_id": thread_id,
+                        "mail_message_id": message.id,
+                    }
+                )
 
     def _sync_attachments_on_known_thread(
         self,

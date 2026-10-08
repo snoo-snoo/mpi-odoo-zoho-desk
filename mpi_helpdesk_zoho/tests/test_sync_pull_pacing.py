@@ -60,6 +60,37 @@ class TestSyncPullPacing(TransactionCase):
         self.assertEqual(first, second)
         self.assertEqual(len(cache), 1)
 
+    def test_mapping_needs_side_content_when_threads_missing(self):
+        connection = self._connection()
+        ticket = self.env["helpdesk.ticket"].create(
+            {"name": "Desk thread gap", "company_id": self.env.company.id}
+        )
+        ticket_map = self.env["mpi.zoho.desk.ticket.map"].create(
+            {
+                "connection_id": connection.id,
+                "helpdesk_ticket_id": ticket.id,
+                "desk_ticket_id": "63383000025185805",
+            }
+        )
+        self.env["mpi.zoho.desk.comment.map"].create(
+            {
+                "ticket_map_id": ticket_map.id,
+                "desk_thread_id": "1",
+                "mail_message_id": self.env["mail.message"].create(
+                    {"body": "only one", "model": "helpdesk.ticket", "res_id": ticket.id}
+                ).id,
+            }
+        )
+        sync = self.env["mpi.zoho.desk.sync"]
+        self.assertFalse(
+            sync._mapping_needs_side_content(ticket_map, threads=[{"id": "1"}])
+        )
+        self.assertTrue(
+            sync._mapping_needs_side_content(
+                ticket_map, threads=[{"id": "1"}, {"id": "2"}]
+            )
+        )
+
     def test_commit_batch_size_cron_backfill(self):
         self.assertEqual(
             sync_pull.commit_batch_size(backfill=True, cron_id=78),
