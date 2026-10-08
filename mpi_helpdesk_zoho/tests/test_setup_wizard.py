@@ -128,7 +128,8 @@ class TestSetupWizard(TransactionCase):
         ) as fake_sync:
             wizard.action_apply()
         fake_sync.assert_not_called()
-        self.assertTrue(connection.backfill_pending)
+        Connection = self.env["mpi.zoho.desk.connection"]
+        self.assertIn(connection.id, Connection._pending_backfill_connection_ids())
 
     def test_inbound_uses_paired_team(self):
         connection = self._connection()

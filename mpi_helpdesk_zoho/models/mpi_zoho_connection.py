@@ -1,5 +1,6 @@
 # Part of mpi_helpdesk_zoho. See LICENSE file for full copyright and licensing details.
 
+import json
 import logging
 import secrets
 import uuid
@@ -15,6 +16,7 @@ from ..lib.self_client import SELF_CLIENT_SCOPE_CSV
 _logger = logging.getLogger(__name__)
 
 DEFAULT_MIME_CSV = ",".join(sorted(DEFAULT_MIME_ALLOW))
+_PENDING_BACKFILL_PARAM = "mpi_helpdesk_zoho.pending_backfill_connection_ids"
 
 
 class MpiZohoConnection(models.Model):
@@ -106,10 +108,6 @@ class MpiZohoConnection(models.Model):
     )
     last_error = fields.Text(readonly=True)
     last_catchup_at = fields.Datetime(readonly=True)
-    backfill_pending = fields.Boolean(
-        copy=False,
-        help="Backfill is scheduled to run on the next catch-up cron after commit.",
-    )
 
     agent_map_ids = fields.One2many("mpi.zoho.desk.agent.map", "connection_id")
     status_map_ids = fields.One2many("mpi.zoho.desk.status.map", "connection_id")
@@ -286,17 +284,41 @@ class MpiZohoConnection(models.Model):
         self.search([("active", "=", True), ("state", "=", "verified")]).action_catch_up()
 
     @api.model
+    def _pending_backfill_connection_ids(self):
+        param = self.env["ir.config_parameter"].sudo()
+        raw = param.get_param(_PENDING_BACKFILL_PARAM, "[]")
+        try:
+            ids = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(ids, list):
+            return []
+        return [connection_id for connection_id in ids if isinstance(connection_id, int)]
+
+    @api.model
+    def _enqueue_pending_backfill(self, connection_ids):
+        connection_ids = [connection_id for connection_id in connection_ids if connection_id]
+        if not connection_ids:
+            return
+        param = self.env["ir.config_parameter"].sudo()
+        pending = set(self._pending_backfill_connection_ids())
+        pending.update(connection_ids)
+        param.set_param(_PENDING_BACKFILL_PARAM, json.dumps(sorted(pending)))
+
+    @api.model
+    def _pop_pending_backfill_connection_ids(self):
+        pending = self._pending_backfill_connection_ids()
+        self.env["ir.config_parameter"].sudo().set_param(_PENDING_BACKFILL_PARAM, "[]")
+        return pending
+
+    @api.model
     def _cron_process_pending_backfill(self):
-        pending = self.search(
-            [
-                ("backfill_pending", "=", True),
-                ("active", "=", True),
-                ("state", "=", "verified"),
-            ]
-        )
-        for connection in pending:
-            connection.backfill_pending = False
-            connection._sync_from_desk(backfill=True)
+        pending_ids = self._pop_pending_backfill_connection_ids()
+        if not pending_ids:
+            return
+        for connection in self.browse(pending_ids).exists():
+            if connection.active and connection.state == "verified":
+                connection._sync_from_desk(backfill=True)
 
     def _notify_pull_skipped_no_department_map(self):
         self.ensure_one()
@@ -318,7 +340,7 @@ class MpiZohoConnection(models.Model):
                 bus._sendone(user.partner_id, "simple_notification", payload)
 
     def _schedule_backfill_once(self):
-        self.write({"backfill_pending": True})
+        self._enqueue_pending_backfill(self.ids)
         self._schedule_catchup_once()
 
     def _schedule_catchup_once(self):
