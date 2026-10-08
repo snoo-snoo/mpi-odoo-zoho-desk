@@ -68,6 +68,7 @@
                         <field name="inbound_team_id"/>
                         <field name="catchup_interval_minutes"/>
                         <field name="desk_api_backoff_until" readonly="1"/>
+                        <field name="backfill_list_from" readonly="1"/>
                     </group>
                     <notebook>
                         <page string="Team Map">

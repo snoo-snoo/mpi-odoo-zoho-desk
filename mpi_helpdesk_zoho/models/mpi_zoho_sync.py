@@ -162,7 +162,7 @@ class MpiZohoSync(models.AbstractModel):
             return True
         partner_cache = {}
         desk_map_cache = {}
-        start = 1
+        start = max(int(connection.backfill_list_from or 1), 1) if backfill else 1
         page_size = PAGE_SIZE
         batch = 0
         commit_every = commit_batch_size(
@@ -192,6 +192,14 @@ class MpiZohoSync(models.AbstractModel):
                         desk_map_cache=desk_map_cache,
                     )
                 except Exception as exc:
+                    if self._cursor_lost(exc):
+                        _logger.warning(
+                            "Ticket Sync paused at Desk ticket %s (%s).",
+                            row.get("id"),
+                            exc,
+                        )
+                        stopped_early = True
+                        break
                     if self._is_fatal_db_error(exc) or self._sync_abort_pull(exc):
                         _logger.exception(
                             "Ticket Sync aborted for Desk ticket %s", row.get("id")
@@ -221,7 +229,18 @@ class MpiZohoSync(models.AbstractModel):
         if batch and not stopped_early:
             if not self._cron_keep_going(batch):
                 stopped_early = True
+        if backfill:
+            connection.sudo().write(
+                {"backfill_list_from": start if stopped_early else 1}
+            )
         return not stopped_early
+
+    @staticmethod
+    def _cursor_lost(exc):
+        if isinstance(exc, InterfaceError):
+            return True
+        message = str(exc).lower()
+        return "cursor already closed" in message or "connection already closed" in message
 
     @staticmethod
     def _sync_abort_pull(exc):
@@ -286,7 +305,13 @@ class MpiZohoSync(models.AbstractModel):
             )
             ticket = self._link_helpdesk_ticket_to_mapping(mapping, ticket)
             is_new = True
-        description = self._finalize_ticket_description(client, ticket, description_html)
+        description = self._finalize_ticket_description(
+            client,
+            ticket,
+            description_html,
+            desk_ticket_id=desk_id,
+            embed_inline_images=not backfill,
+        )
         if apply_ticket_fields:
             values = self._desk_to_helpdesk_values(
                 connection, detail, description_text=description
@@ -369,12 +394,14 @@ class MpiZohoSync(models.AbstractModel):
                 return trim_desk_html_before_signature(body)
         return False
 
-    def _finalize_ticket_description(self, client, ticket, html):
+    def _finalize_ticket_description(
+        self, client, ticket, html, *, desk_ticket_id=None, embed_inline_images=True
+    ):
         trimmed = trim_desk_html_before_signature(html) if html else False
         if not trimmed or not ticket:
             return trimmed or False
-        mapping = ticket.mpi_zoho_map_ids[:1]
-        desk_ticket_id = mapping.desk_ticket_id if mapping else False
+        if not embed_inline_images or not desk_ticket_id:
+            return trimmed
         return (
             embed_desk_inline_images(
                 self.env,

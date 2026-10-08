@@ -6,6 +6,8 @@ import secrets
 import uuid
 from datetime import timedelta
 
+from psycopg2 import InterfaceError
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -116,6 +118,11 @@ class MpiZohoConnection(models.Model):
         required=True,
     )
     backfill_lookback_days = fields.Integer(default=90)
+    backfill_list_from = fields.Integer(
+        default=1,
+        copy=False,
+        help="Desk list API offset for the next backfill cron chunk (1-based).",
+    )
     inbound_team_id = fields.Many2one("helpdesk.team", string="Inbound Helpdesk team")
     catchup_interval_minutes = fields.Integer(default=15)
 
@@ -505,7 +512,12 @@ class MpiZohoConnection(models.Model):
                 continue
             if not complete:
                 still_pending.append(connection.id)
-        self._set_pending_backfill_connection_ids(still_pending)
+        try:
+            self._set_pending_backfill_connection_ids(still_pending)
+        except InterfaceError:
+            _logger.warning(
+                "Could not persist Zoho backfill queue; cron worker is shutting down."
+            )
         return bool(still_pending)
 
     def _notify_pull_skipped_no_department_map(self):
@@ -528,6 +540,7 @@ class MpiZohoConnection(models.Model):
                 bus._sendone(user.partner_id, "simple_notification", payload)
 
     def _schedule_backfill_once(self):
+        self.write({"backfill_list_from": 1})
         self._enqueue_pending_backfill(self.ids)
         self._schedule_catchup_once()
 
