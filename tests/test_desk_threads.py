@@ -7,11 +7,11 @@ from lib_import import ensure_lib_package
 ensure_lib_package()
 
 from mpi_helpdesk_zoho.lib.desk_threads import (
-    desk_plaintext_looks_corrupted,
+    desk_description_looks_corrupted,
     postprocess_desk_plaintext,
-    prepare_desk_html_for_plaintext,
     sort_threads_for_chatter,
     thread_body,
+    trim_desk_html_before_signature,
 )
 
 
@@ -31,16 +31,19 @@ class TestDeskThreads(unittest.TestCase):
             "Full text from get_thread",
         )
 
-    def test_prepare_html_strips_inline_images(self):
+    def test_trim_html_keeps_body_images_drops_signature(self):
         html = (
             '<p>Hallo, Darf man wirklich ein KGT installieren ?</p>'
-            '<img src="/api/v1/threads/633/inlineImages/edbsnd7726d471e71407357237fb7dce'
-            '?et=1a14e75f812&amp;ha=00f00bcf2665a17e79a766164dc781fcd3c730a399119bfc0d804b2760a1ff89&amp;f=1"/>'
-            "<p>Meilleures salutations,</p><p>Noé Laurent</p>"
+            '<img src="/api/v1/threads/633/inlineImages/contentphoto'
+            '?et=1a14e75f812&amp;f=1.png"/>'
+            "<p>Meilleures salutations,</p>"
+            '<img src="/api/v1/threads/633/inlineImages/signaturelogo?f=2.png"/>'
+            "<p>Noé Laurent</p>"
         )
-        prepared = prepare_desk_html_for_plaintext(html)
-        self.assertNotIn("inlineImages", prepared)
-        self.assertIn("KGT installieren", prepared)
+        trimmed = trim_desk_html_before_signature(html)
+        self.assertIn("contentphoto", trimmed)
+        self.assertNotIn("Meilleures salutations", trimmed)
+        self.assertNotIn("signaturelogo", trimmed)
 
     def test_postprocess_strips_tokens_and_signature(self):
         raw = (
@@ -55,8 +58,8 @@ class TestDeskThreads(unittest.TestCase):
         self.assertNotIn("edbsnd7726", plain)
         self.assertNotIn("Meilleures salutations", plain)
         self.assertNotIn("okofen.fr", plain)
-        self.assertTrue(desk_plaintext_looks_corrupted(raw))
-        self.assertFalse(desk_plaintext_looks_corrupted(plain))
+        self.assertTrue(desk_description_looks_corrupted(raw))
+        self.assertFalse(desk_description_looks_corrupted(plain))
 
     def test_sort_threads_oldest_first_for_chatter(self):
         threads = [

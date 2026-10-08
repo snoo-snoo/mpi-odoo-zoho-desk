@@ -4,8 +4,6 @@ import logging
 from datetime import timedelta
 
 from odoo import api, fields, models
-from odoo.tools import html2plaintext
-
 from ..lib.attachment_policy import decide_attachment
 from ..lib.desk_attachments import (
     desk_attachment_download_url,
@@ -15,13 +13,13 @@ from ..lib.desk_attachments import (
 from ..lib.comment_visibility import desk_thread_to_odoo, odoo_message_to_desk
 from ..lib.desk_client import DeskClientError
 from ..lib.desk_contact import desk_contact_identity, partner_display_name
+from ..lib.desk_inline_images import embed_desk_inline_images
 from ..lib.desk_threads import (
-    desk_plaintext_looks_corrupted,
+    desk_description_looks_corrupted,
     is_truncated_desk_summary,
-    postprocess_desk_plaintext,
-    prepare_desk_html_for_plaintext,
     sort_threads_for_chatter,
     thread_body,
+    trim_desk_html_before_signature,
 )
 from ..lib.echo import payload_hash, should_apply
 from ..lib.partner_match import resolve_partner
@@ -246,7 +244,7 @@ class MpiZohoSync(models.AbstractModel):
             mapping = self._claim_desk_ticket_mapping(connection, desk_id, desk_map_cache)
         detail = client.get_ticket(desk_id)
         threads = sort_threads_for_chatter(client.list_threads(desk_id))
-        description_text = self._desk_ticket_description_text(client, desk_id, detail, threads)
+        description_html = self._desk_ticket_description_html(client, desk_id, detail, threads)
         ticket = mapping.helpdesk_ticket_id or False
         is_new = not ticket
         if not ticket:
@@ -254,22 +252,20 @@ class MpiZohoSync(models.AbstractModel):
                 connection,
                 detail,
                 partner_cache=partner_cache,
-                description_text=description_text,
             )
             ticket = self._link_helpdesk_ticket_to_mapping(mapping, ticket)
             is_new = True
+        description = self._finalize_ticket_description(client, ticket, description_html)
         if apply_ticket_fields:
             values = self._desk_to_helpdesk_values(
-                connection, detail, description_text=description_text
+                connection, detail, description_text=description
             )
             ticket.with_context(mpi_zoho_skip_outbox=True).write(values)
             mapping.write(
                 {"last_payload_hash": incoming_hash, "last_origin": "desk", "source_removed": False}
             )
-        elif description_text and self._description_needs_refresh(ticket.description, description_text):
-            ticket.with_context(mpi_zoho_skip_outbox=True).write(
-                {"description": description_text}
-            )
+        elif description and self._description_needs_refresh(ticket.description, description):
+            ticket.with_context(mpi_zoho_skip_outbox=True).write({"description": description})
         sync_side_content = (
             should_sync_side_content(
                 is_new=is_new,
@@ -296,24 +292,31 @@ class MpiZohoSync(models.AbstractModel):
                 detail,
                 defer_binaries=defer,
             )
-    def _desk_description_plaintext(self, text):
-        if not text:
-            return False
-        prepared = prepare_desk_html_for_plaintext(text)
-        plain = html2plaintext(prepared).strip()
-        plain = postprocess_desk_plaintext(plain) or plain
-        return plain or False
-
-    def _desk_ticket_description_text(self, client, desk_id, detail, threads):
+    def _desk_ticket_description_html(self, client, desk_id, detail, threads):
         raw = (detail.get("description") or "").strip()
         if raw and not is_truncated_desk_summary(raw):
-            return self._desk_description_plaintext(raw)
+            return trim_desk_html_before_signature(raw)
         for thread in sort_threads_for_chatter(threads):
             full = self._resolve_thread(client, desk_id, thread)
             body = thread_body(full)
             if body:
-                return self._desk_description_plaintext(body)
+                return trim_desk_html_before_signature(body)
         return False
+
+    def _finalize_ticket_description(self, client, ticket, html):
+        trimmed = trim_desk_html_before_signature(html) if html else False
+        if not trimmed or not ticket:
+            return trimmed or False
+        return (
+            embed_desk_inline_images(
+                self.env,
+                client,
+                trimmed,
+                res_model="helpdesk.ticket",
+                res_id=ticket.id,
+            )
+            or trimmed
+        )
 
     @staticmethod
     def _description_needs_refresh(current, new):
@@ -325,7 +328,7 @@ class MpiZohoSync(models.AbstractModel):
             return True
         if current.rstrip().endswith("...") or current.rstrip().endswith("…"):
             return True
-        if desk_plaintext_looks_corrupted(current):
+        if desk_description_looks_corrupted(current):
             return True
         return len(new) > len(current) + 40
 

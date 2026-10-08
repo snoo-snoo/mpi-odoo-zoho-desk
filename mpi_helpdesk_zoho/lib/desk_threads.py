@@ -5,11 +5,6 @@
 import re
 from datetime import datetime
 
-_IMG_TAG = re.compile(r"<img\b[^>]*>", re.I)
-_INLINE_IMAGES_IN_HTML = re.compile(
-    r'(?:https?://[^"\s>]+)?/api/v1/threads/\d+/inlineImages/[^"\s>]+',
-    re.I,
-)
 _INLINE_IMAGE_TOKEN = re.compile(
     r"(?:/api/v1/threads/\d+/inlineImages/)?"
     r"[a-z0-9]{40,}(?:\?[a-z0-9=&_.]+)?(?:\.png|\.jpg|\.gif)?",
@@ -75,12 +70,16 @@ def thread_body(thread):
     return False
 
 
-def prepare_desk_html_for_plaintext(html):
-    """Drop inline images before html2plaintext (Desk embeds huge token URLs in HTML)."""
-    text = str(html or "")
-    text = _IMG_TAG.sub(" ", text)
-    text = _INLINE_IMAGES_IN_HTML.sub(" ", text)
-    return text
+def trim_desk_html_before_signature(html):
+    """Keep message body HTML (including content images); drop signature/footer block."""
+    text = str(html or "").strip()
+    if not text:
+        return False
+    sig = _SIGNATURE_START.search(text)
+    if sig:
+        text = text[: sig.start()]
+    text = _FOOTNOTE_BLOCK.sub("", text)
+    return text.strip() or False
 
 
 def postprocess_desk_plaintext(plain):
@@ -106,15 +105,21 @@ def postprocess_desk_plaintext(plain):
     return text.strip() or False
 
 
-def desk_plaintext_looks_corrupted(text):
-    """True when a stored description still has Desk inline-image or footer junk."""
+def desk_description_looks_corrupted(text):
+    """True when description still has raw Desk inline URLs or plaintext token junk."""
     raw = str(text or "")
     if not raw:
         return False
-    if "/inlineImages/" in raw or "/api/v1/threads/" in raw:
+    if "/inlineImages/" in raw:
         return True
     if _INLINE_IMAGE_TOKEN.search(raw):
         return True
     if re.search(r"\bNone\b.*\[\d+\]", raw):
         return True
+    if re.search(r"/api/v1/threads/\d+/inlineImages/", raw):
+        return True
     return False
+
+
+def desk_plaintext_looks_corrupted(text):
+    return desk_description_looks_corrupted(text)
