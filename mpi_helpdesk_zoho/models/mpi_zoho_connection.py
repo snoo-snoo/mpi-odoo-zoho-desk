@@ -317,8 +317,17 @@ class MpiZohoConnection(models.Model):
         if not pending_ids:
             return
         for connection in self.browse(pending_ids).exists():
-            if connection.active and connection.state == "verified":
+            if not (connection.active and connection.state == "verified"):
+                continue
+            try:
                 connection._sync_from_desk(backfill=True)
+            except Exception:
+                _logger.exception(
+                    "Desk backfill failed for Connection %s; re-queued for cron",
+                    connection.id,
+                )
+                self._enqueue_pending_backfill([connection.id])
+                raise
 
     def _notify_pull_skipped_no_department_map(self):
         self.ensure_one()

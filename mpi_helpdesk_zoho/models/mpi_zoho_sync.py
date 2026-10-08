@@ -15,8 +15,8 @@ from ..lib.priority import desk_to_helpdesk, helpdesk_to_desk
 from ..lib.source_removal import other_side_action
 from ..lib.sync_pull import (
     CATCHUP_TICKET_CAP,
-    COMMIT_EVERY,
     PAGE_SIZE,
+    commit_batch_size,
     defer_attachment_binaries,
     list_ticket_params,
     partner_cache_key,
@@ -57,6 +57,9 @@ class MpiZohoSync(models.AbstractModel):
         start = 1
         page_size = PAGE_SIZE
         batch = 0
+        commit_every = commit_batch_size(
+            backfill=backfill, cron_id=self.env.context.get("cron_id")
+        )
         while True:
             params = list_ticket_params(
                 start=start,
@@ -78,10 +81,12 @@ class MpiZohoSync(models.AbstractModel):
                         backfill=backfill,
                         partner_cache=partner_cache,
                     )
-                except Exception:
+                except Exception as exc:
                     _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
+                    if self._sync_abort_pull(exc):
+                        raise
                 batch += 1
-                if batch >= COMMIT_EVERY:
+                if batch >= commit_every:
                     if not self._cron_keep_going(batch):
                         return
                     batch = 0
@@ -92,6 +97,14 @@ class MpiZohoSync(models.AbstractModel):
                 break
         if batch:
             self._cron_keep_going(batch)
+
+    @staticmethod
+    def _sync_abort_pull(exc):
+        """Stop the pull when PostgreSQL canceled the statement or closed the cursor."""
+        if getattr(exc, "pgcode", None) == "57014":
+            return True
+        message = str(exc).lower()
+        return "cursor already closed" in message or "connection already closed" in message
 
     def _parse_desk_dt(self, value):
         if not value:

@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from odoo.addons.mpi_helpdesk_zoho.lib import sync_pull
 from odoo.tests import TransactionCase, tagged
 
 
@@ -58,3 +59,13 @@ class TestSyncPullPacing(TransactionCase):
         second = sync._partner_for_desk(connection, detail, partner_cache=cache)
         self.assertEqual(first, second)
         self.assertEqual(len(cache), 1)
+
+    def test_commit_batch_size_cron_backfill(self):
+        self.assertEqual(
+            sync_pull.commit_batch_size(backfill=True, cron_id=78),
+            sync_pull.COMMIT_EVERY_CRON_BACKFILL,
+        )
+        self.assertEqual(
+            sync_pull.commit_batch_size(backfill=False, cron_id=78),
+            sync_pull.COMMIT_EVERY,
+        )

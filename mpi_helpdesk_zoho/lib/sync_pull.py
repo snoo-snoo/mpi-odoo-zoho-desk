@@ -3,8 +3,16 @@
 """Pull pacing and side-content rules for Ticket Sync."""
 
 COMMIT_EVERY = 20
+COMMIT_EVERY_CRON_BACKFILL = 1
 CATCHUP_TICKET_CAP = 300
 PAGE_SIZE = 50
+
+
+def commit_batch_size(*, backfill, cron_id):
+    """Cron backfill commits every ticket to avoid Odoo.sh statement timeouts."""
+    if backfill and cron_id:
+        return COMMIT_EVERY_CRON_BACKFILL
+    return COMMIT_EVERY
 
 
 def list_ticket_params(*, start, page_size=PAGE_SIZE, department_ids=None, sort_by="modifiedTime"):
