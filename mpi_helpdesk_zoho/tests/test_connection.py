@@ -198,12 +198,22 @@ class TestWebhookHttp(HttpCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "ok")
 
-    def test_post_without_jwt_is_401(self):
+    def test_validation_post_without_jwt_is_200(self):
         connection = self._connection()
         url = "/mpi_helpdesk_zoho/desk/webhook/%s" % connection.webhook_token
         response = self.url_open(
             url,
             data=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_post_without_jwt_and_payload_is_401(self):
+        connection = self._connection()
+        url = "/mpi_helpdesk_zoho/desk/webhook/%s" % connection.webhook_token
+        response = self.url_open(
+            url,
+            data=b'{"eventType":"Ticket_Update"}',
             headers={"Content-Type": "application/json"},
         )
         self.assertEqual(response.status_code, 401)

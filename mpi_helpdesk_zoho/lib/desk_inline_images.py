@@ -170,8 +170,8 @@ def embed_desk_inline_images(env, client, html_body, *, res_model, res_id, desk_
         except Exception as exc:
             status = getattr(exc, "status_code", None)
             detail = " HTTP %s" % status if status else ""
-            _logger.warning(
-                "Desk inline image download failed%s (%s): %s",
+            _logger.info(
+                "Desk inline image not embedded%s (%s): %s",
                 detail,
                 desk_inline_image_download_url(
                     client, src, desk_ticket_id=desk_ticket_id

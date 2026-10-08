@@ -22,6 +22,24 @@ class TestWebhookAuth(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.reason, "missing_jwt")
 
+    def test_validation_post_without_jwt_is_allowed(self):
+        result = authenticate_webhook(
+            method="POST",
+            authorization=None,
+            validation_post=True,
+            verify_jwt=lambda token: False,
+        )
+        self.assertTrue(result.ok)
+        self.assertTrue(result.handshake)
+
+    def test_x_zdesk_jwt_header_is_used(self):
+        result = authenticate_webhook(
+            method="POST",
+            x_zdesk_jwt="signed-token",
+            verify_jwt=lambda token: token == "signed-token",
+        )
+        self.assertTrue(result.ok)
+
     def test_post_with_invalid_jwt_is_rejected(self):
         result = authenticate_webhook(
             method="POST",

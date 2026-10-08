@@ -31,16 +31,34 @@ class MpiZohoDeskWebhook(http.Controller):
 
         def _verify(jwt_token):
             try:
-                verify_zoho_jwt(jwt_token, dc=connection.desk_dc)
+                verify_zoho_jwt(
+                    jwt_token,
+                    dc=connection.desk_dc,
+                    org_id=connection.desk_org_id,
+                    webhook_id=connection.webhook_id,
+                )
                 return True
-            except Exception:
-                _logger.warning("Desk webhook JWT rejected for Connection %s", connection.id)
+            except Exception as exc:
+                _logger.warning(
+                    "Desk webhook JWT rejected for Connection %s: %s",
+                    connection.id,
+                    exc,
+                )
                 return False
 
+        raw_body = request.httprequest.get_data(as_text=True) or ""
+        validation_post = request.httprequest.method == "POST" and (
+            not raw_body.strip() or raw_body.strip() == "{}"
+        )
+        x_zdesk_jwt = request.httprequest.headers.get("X-ZDesk-JWT") or request.httprequest.headers.get(
+            "x-zdesk-jwt"
+        )
         authorization = request.httprequest.headers.get("Authorization")
         auth = authenticate_webhook(
             method=request.httprequest.method,
             authorization=authorization,
+            x_zdesk_jwt=x_zdesk_jwt,
+            validation_post=validation_post,
             verify_jwt=_verify,
         )
         if not auth.ok:
@@ -49,7 +67,7 @@ class MpiZohoDeskWebhook(http.Controller):
             return request.make_response("ok", status=200)
 
         try:
-            payload = json.loads(request.httprequest.get_data(as_text=True) or "{}")
+            payload = json.loads(raw_body or "{}")
         except json.JSONDecodeError:
             return request.make_response("invalid json", status=400)
         request.env["mpi.zoho.desk.sync"].sudo()._apply_webhook_event(connection, payload)
