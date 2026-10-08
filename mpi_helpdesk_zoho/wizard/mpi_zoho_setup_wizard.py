@@ -426,11 +426,18 @@ class MpiZohoSetupWizard(models.TransientModel):
             }
         )
         if self.run_backfill:
-            connection._sync_from_desk(backfill=True)
+            connection._schedule_backfill_once()
         return {"type": "ir.actions.act_window_close"}
 
     def _apply_department_maps(self, connection):
         selected = self.department_line_ids.filtered("sync")
+        if not selected:
+            raise UserError(
+                _(
+                    "Select at least one Desk department for the Department Map. "
+                    "Inbound Ticket Sync requires a mapped department."
+                )
+            )
         teams = self.env["helpdesk.team"]
         dept_vals = []
         team_vals = []

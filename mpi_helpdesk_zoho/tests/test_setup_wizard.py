@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -93,6 +94,41 @@ class TestSetupWizard(TransactionCase):
                 lambda row: row.desk_department_id == "D2"
             )
         )
+
+    def test_apply_requires_at_least_one_department(self):
+        connection = self._connection()
+        with patch.object(
+            type(connection), "_make_client", return_value=FakeDeskClient()
+        ):
+            wizard = self.env["mpi.zoho.desk.setup.wizard"].create(
+                {"connection_id": connection.id}
+            )
+        wizard.department_line_ids.write({"sync": False})
+        with self.assertRaises(UserError):
+            wizard.action_apply()
+        self.assertFalse(connection.department_map_ids)
+
+    def test_apply_schedules_backfill_instead_of_inline_sync(self):
+        connection = self._connection()
+        with patch.object(
+            type(connection), "_make_client", return_value=FakeDeskClient()
+        ):
+            wizard = self.env["mpi.zoho.desk.setup.wizard"].create(
+                {"connection_id": connection.id}
+            )
+        support = wizard.department_line_ids.filtered(
+            lambda row: row.desk_department_id == "D1"
+        )
+        support.write({"sync": True, "create_team": True, "team_id": False})
+        for line in wizard.status_line_ids:
+            line.write({"sync": True, "create_stage": True, "stage_id": False})
+        wizard.run_backfill = True
+        with patch.object(
+            type(connection), "_sync_from_desk", autospec=True
+        ) as fake_sync:
+            wizard.action_apply()
+        fake_sync.assert_not_called()
+        self.assertTrue(connection.backfill_pending)
 
     def test_inbound_uses_paired_team(self):
         connection = self._connection()

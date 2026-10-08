@@ -23,9 +23,12 @@ class TestSyncPullPacing(TransactionCase):
     def test_pull_skips_without_department_map(self):
         connection = self._connection()
         client = MagicMock()
-        with patch.object(type(connection), "_make_client", return_value=client):
+        with patch.object(type(connection), "_make_client", return_value=client), patch.object(
+            type(connection), "_notify_pull_skipped_no_department_map"
+        ) as notify:
             self.env["mpi.zoho.desk.sync"]._pull_connection(connection, backfill=False)
         client.list_tickets.assert_not_called()
+        notify.assert_called_once()
 
     def test_pull_passes_department_ids(self):
         connection = self._connection()

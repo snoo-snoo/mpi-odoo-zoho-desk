@@ -51,10 +51,7 @@ class MpiZohoSync(models.AbstractModel):
             cutoff = fields.Datetime.now() - timedelta(days=connection.backfill_lookback_days or 90)
         department_ids = sorted(connection._mapped_department_ids())
         if not department_ids:
-            _logger.info(
-                "Ticket Sync pull skipped for Connection %s: no Department Map",
-                connection.id,
-            )
+            connection._notify_pull_skipped_no_department_map()
             return
         partner_cache = {}
         start = 1

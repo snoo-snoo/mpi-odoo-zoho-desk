@@ -106,6 +106,10 @@ class MpiZohoConnection(models.Model):
     )
     last_error = fields.Text(readonly=True)
     last_catchup_at = fields.Datetime(readonly=True)
+    backfill_pending = fields.Boolean(
+        copy=False,
+        help="Backfill is scheduled to run on the next catch-up cron after commit.",
+    )
 
     agent_map_ids = fields.One2many("mpi.zoho.desk.agent.map", "connection_id")
     status_map_ids = fields.One2many("mpi.zoho.desk.status.map", "connection_id")
@@ -278,7 +282,44 @@ class MpiZohoConnection(models.Model):
 
     @api.model
     def _cron_catch_up(self):
+        self._cron_process_pending_backfill()
         self.search([("active", "=", True), ("state", "=", "verified")]).action_catch_up()
+
+    @api.model
+    def _cron_process_pending_backfill(self):
+        pending = self.search(
+            [
+                ("backfill_pending", "=", True),
+                ("active", "=", True),
+                ("state", "=", "verified"),
+            ]
+        )
+        for connection in pending:
+            connection.backfill_pending = False
+            connection._sync_from_desk(backfill=True)
+
+    def _notify_pull_skipped_no_department_map(self):
+        self.ensure_one()
+        title = _("Zoho Desk Ticket Sync")
+        message = _(
+            "Ticket Sync pull skipped for Connection %(name)s: add at least one Department Map.",
+            name=self.display_name,
+        )
+        _logger.info(message)
+        group = self.env.ref(
+            "mpi_helpdesk_zoho.group_zoho_admin", raise_if_not_found=False
+        )
+        if not group:
+            return
+        payload = {"type": "warning", "title": title, "message": message}
+        bus = self.env["bus.bus"].sudo()
+        for user in group.users:
+            if user.partner_id:
+                bus._sendone(user.partner_id, "simple_notification", payload)
+
+    def _schedule_backfill_once(self):
+        self.write({"backfill_pending": True})
+        self._schedule_catchup_once()
 
     def _schedule_catchup_once(self):
         data = self.env.cr.precommit.data
