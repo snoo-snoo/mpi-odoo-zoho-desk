@@ -346,6 +346,8 @@ class MpiZohoSync(models.AbstractModel):
         trimmed = trim_desk_html_before_signature(html) if html else False
         if not trimmed or not ticket:
             return trimmed or False
+        mapping = ticket.mpi_zoho_map_ids[:1]
+        desk_ticket_id = mapping.desk_ticket_id if mapping else False
         return (
             embed_desk_inline_images(
                 self.env,
@@ -353,6 +355,7 @@ class MpiZohoSync(models.AbstractModel):
                 trimmed,
                 res_model="helpdesk.ticket",
                 res_id=ticket.id,
+                desk_ticket_id=desk_ticket_id,
             )
             or trimmed
         )

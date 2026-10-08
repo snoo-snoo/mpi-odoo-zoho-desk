@@ -7,7 +7,7 @@ from lib_import import ensure_lib_package
 ensure_lib_package()
 
 from mpi_helpdesk_zoho.lib.desk_inline_images import (
-    desk_api_absolute_url,
+    desk_inline_image_download_url,
     inline_image_filename,
     is_desk_inline_image_src,
 )
@@ -18,15 +18,19 @@ class _FakeClient:
 
 
 class TestDeskInlineImages(unittest.TestCase):
-    def test_absolute_api_url(self):
-        url = desk_api_absolute_url(
+    def test_fixes_shorthand_inline_path_with_ticket_id(self):
+        src = (
+            "/api/v1/threads/63383000025185809/inlineImages/edbsnb5e3c895b2d88"
+            "?et=1a14ea8894c&amp;ha=abc&amp;f=1.png"
+        )
+        url = desk_inline_image_download_url(
             _FakeClient(),
-            "/api/v1/threads/1/inlineImages/abc?f=1.png",
+            src,
+            desk_ticket_id="63383000025230899",
         )
-        self.assertEqual(
-            url,
-            "https://desk.zoho.eu/api/v1/threads/1/inlineImages/abc?f=1.png",
-        )
+        self.assertIn("/tickets/63383000025230899/threads/63383000025185809/inlineImages/", url)
+        self.assertIn("ha=abc", url)
+        self.assertNotIn("&amp;", url)
 
     def test_inline_image_detection_and_filename(self):
         src = "/api/v1/threads/1/inlineImages/token?f=3.png"
