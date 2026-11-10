@@ -1,7 +1,7 @@
 # Part of mpi_helpdesk_zoho. See LICENSE file for full copyright and licensing details.
 {
     "name": "MPI Helpdesk Zoho Desk Connector",
-    "version": "19.0.1.3.23",
+    "version": "19.0.1.3.24",
     "author": "Michael Plöckinger, MPI GmbH",
     "website": "https://mpi-erp.at",
     "license": "OPL-1",
@@ -19,6 +19,7 @@ Keeps Helpdesk Tickets aligned with Zoho Desk. One Connection per company.
     - Team Map and Department Map control what crosses
     - Buyer brings a Zoho self-client; webhooks plus a paced 15-minute catch-up
     - Pull filters by Department Map; Backfill defers attachment binaries
+    - Catch-up skips unchanged tickets; Backfill posts a few threads per cron run
     - Enterprise Helpdesk required
     """,
     "depends": ["helpdesk", "mail"],

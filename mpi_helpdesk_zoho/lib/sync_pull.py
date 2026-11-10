@@ -6,6 +6,7 @@ COMMIT_EVERY = 20
 COMMIT_EVERY_CRON_BACKFILL = 1
 CATCHUP_TICKET_CAP = 300
 PAGE_SIZE = 50
+BACKFILL_THREAD_POST_CAP = 5
 
 
 def commit_batch_size(*, backfill, cron_id):
@@ -15,8 +16,8 @@ def commit_batch_size(*, backfill, cron_id):
     return COMMIT_EVERY
 
 
-def list_ticket_params(*, start, page_size=PAGE_SIZE, department_ids=None, sort_by="modifiedTime"):
-    """Build Desk GET /tickets query params. department_ids limits inbound scope."""
+def list_ticket_params(*, start, page_size=PAGE_SIZE, department_ids=None, sort_by="-modifiedTime"):
+    """Build Desk GET /tickets query params. Newest modified tickets come first."""
     params = {
         "from": start,
         "limit": page_size,
@@ -30,6 +31,20 @@ def list_ticket_params(*, start, page_size=PAGE_SIZE, department_ids=None, sort_
 def should_sync_side_content(*, is_new, backfill, force_side_content=False):
     """Threads and attachments: new tickets, backfill, or webhook-forced events."""
     return bool(is_new or backfill or force_side_content)
+
+
+def lookback_page_exhausted(closed_times, cutoff):
+    """True when every row is closed strictly before cutoff.
+
+    None means the ticket is open or the close time did not parse. Those rows
+    keep the scan going. Used after a newest-first list so older pages can stop.
+    """
+    if not closed_times or cutoff is None:
+        return False
+    for closed in closed_times:
+        if closed is None or closed >= cutoff:
+            return False
+    return True
 
 
 def defer_attachment_binaries(*, backfill):

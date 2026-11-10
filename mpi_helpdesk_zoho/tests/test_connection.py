@@ -39,6 +39,7 @@ class TestConnection(TransactionCase):
                 "name": "Desk EU",
                 "desk_org_id": "1",
                 "company_id": self.env.company.id,
+                "state": "verified",
             }
         )
         team = self.env["helpdesk.team"].search([], limit=1)
@@ -58,7 +59,7 @@ class TestConnection(TransactionCase):
             [("helpdesk_ticket_id", "=", ticket.id), ("event_type", "=", "create_ticket")]
         )
         self.assertEqual(len(outbox), 1)
-        self.assertTrue(self.env.cr.precommit.data.get("mpi.zoho.desk.catchup_scheduled"))
+        self.assertFalse(self.env.cr.precommit.data.get("mpi.zoho.desk.catchup_scheduled"))
 
     def test_backfill_button_queues_cron_instead_of_inline_sync(self):
         connection = self.env["mpi.zoho.desk.connection"].create(

@@ -539,6 +539,22 @@ class MpiZohoConnection(models.Model):
             if user.partner_id:
                 bus._sendone(user.partner_id, "simple_notification", payload)
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        self.env.cr.precommit.data.pop("mpi_zoho_connection_by_company", None)
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        self.env.cr.precommit.data.pop("mpi_zoho_connection_by_company", None)
+        return result
+
+    def unlink(self):
+        result = super().unlink()
+        self.env.cr.precommit.data.pop("mpi_zoho_connection_by_company", None)
+        return result
+
     def _schedule_backfill_once(self):
         self.write({"backfill_list_from": 1})
         self._enqueue_pending_backfill(self.ids)

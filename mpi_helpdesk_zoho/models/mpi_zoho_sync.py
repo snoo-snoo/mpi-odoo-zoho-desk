@@ -32,12 +32,14 @@ from ..lib.partner_match import resolve_partner
 from ..lib.priority import desk_to_helpdesk, helpdesk_to_desk
 from ..lib.source_removal import other_side_action
 from ..lib.sync_pull import (
+    BACKFILL_THREAD_POST_CAP,
     CATCHUP_TICKET_CAP,
     COMMIT_EVERY,
     PAGE_SIZE,
     commit_batch_size,
     defer_attachment_binaries,
     list_ticket_params,
+    lookback_page_exhausted,
     partner_cache_key,
     should_sync_side_content,
 )
@@ -47,6 +49,16 @@ from ..lib.sync_scope import allows_inbound
 from ..lib.ticket_fields import apply_desk_wins
 
 _logger = logging.getLogger(__name__)
+
+_IMPORT_MESSAGE_CONTEXT = {
+    "mpi_zoho_skip_outbox": True,
+    "mail_create_nosubscribe": True,
+    "mail_create_nolog": True,
+    "mail_notrack": True,
+    "tracking_disable": True,
+    "mail_auto_subscribe_no_notify": True,
+}
+_THREAD_WEBHOOK_EVENTS = {"Ticket_Thread_Add", "Ticket_Comment_Add"}
 
 
 class MpiZohoSync(models.AbstractModel):
@@ -179,11 +191,15 @@ class MpiZohoSync(models.AbstractModel):
             tickets = page.get("data") or []
             if not tickets:
                 break
+            closed_times = []
             for row in tickets:
-                if cutoff and row.get("closedTime") and self._parse_desk_dt(row.get("closedTime")) < cutoff:
+                closed_raw = row.get("closedTime")
+                closed_dt = self._parse_desk_dt(closed_raw) if closed_raw else None
+                closed_times.append(closed_dt)
+                if cutoff and closed_dt and closed_dt < cutoff:
                     continue
                 try:
-                    self._apply_desk_ticket(
+                    pause_pull = self._apply_desk_ticket(
                         connection,
                         client,
                         row,
@@ -213,6 +229,10 @@ class MpiZohoSync(models.AbstractModel):
                         )
                     else:
                         _logger.exception("Ticket Sync failed for Desk ticket %s", row.get("id"))
+                else:
+                    if pause_pull:
+                        stopped_early = True
+                        break
                 batch += 1
                 if batch >= commit_every:
                     if not self._cron_keep_going(batch):
@@ -220,6 +240,13 @@ class MpiZohoSync(models.AbstractModel):
                         break
                     batch = 0
             if stopped_early:
+                break
+            if cutoff and lookback_page_exhausted(closed_times, cutoff):
+                _logger.info(
+                    "Backfill lookback reached for Connection %s at Desk offset %s.",
+                    connection.id,
+                    start,
+                )
                 break
             if len(tickets) < page_size:
                 break
@@ -292,6 +319,14 @@ class MpiZohoSync(models.AbstractModel):
                     mapping.last_origin = "desk"
         else:
             mapping = self._claim_desk_ticket_mapping(connection, desk_id, desk_map_cache)
+        if self._pull_can_skip_ticket(
+            mapping,
+            backfill=backfill,
+            force_apply=force_apply,
+            force_side_content=force_side_content,
+            apply_ticket_fields=apply_ticket_fields,
+        ):
+            return False
         detail = client.get_ticket(desk_id)
         threads = sort_threads_for_chatter(client.list_threads(desk_id))
         description_html = self._desk_ticket_description_html(client, desk_id, detail, threads)
@@ -332,14 +367,18 @@ class MpiZohoSync(models.AbstractModel):
         )
         if sync_side_content:
             defer = defer_attachment_binaries(backfill=backfill)
-            self._sync_threads_in(
+            truncated = self._sync_threads_in(
                 connection,
                 client,
                 mapping,
                 desk_id,
                 threads=threads,
-                defer_binaries=False,
+                defer_binaries=defer,
+                max_new_posts=BACKFILL_THREAD_POST_CAP if backfill else None,
             )
+            mapping.desk_threads_synced = not truncated
+            if truncated:
+                return True
             self._sync_attachments_in(
                 connection,
                 client,
@@ -348,6 +387,11 @@ class MpiZohoSync(models.AbstractModel):
                 detail,
                 defer_binaries=defer,
             )
+        elif mapping and threads is not None:
+            mapping.desk_threads_synced = not self._mapping_needs_side_content(
+                mapping, threads=threads
+            )
+        return False
 
     def resync_desk_ticket(self, connection, desk_ticket_id):
         """Pull one Desk ticket now (fields, description, threads, attachments)."""
@@ -428,6 +472,24 @@ class MpiZohoSync(models.AbstractModel):
             return True
         return len(new) > len(current) + 40
 
+    def _pull_can_skip_ticket(
+        self,
+        mapping,
+        *,
+        backfill,
+        force_apply,
+        force_side_content,
+        apply_ticket_fields,
+    ):
+        """Skip Desk HTTP when this ticket is already fully imported."""
+        if not mapping or not mapping.helpdesk_ticket_id or force_apply or force_side_content:
+            return False
+        if apply_ticket_fields:
+            return False
+        if backfill:
+            return bool(mapping.desk_threads_synced)
+        return not self._mapping_needs_side_content(mapping)
+
     def _mapping_needs_side_content(self, mapping, *, threads=None):
         if not mapping or not mapping.helpdesk_ticket_id:
             return False
@@ -447,7 +509,7 @@ class MpiZohoSync(models.AbstractModel):
 
     def _resolve_thread(self, client, desk_id, thread):
         thread_id = thread.get("id")
-        if not thread_id:
+        if not thread_id or thread_body(thread):
             return thread
         try:
             return client.get_thread(desk_id, thread_id)
@@ -617,26 +679,47 @@ class MpiZohoSync(models.AbstractModel):
         return Markup(escaped)
 
     def _sync_threads_in(
-        self, connection, client, mapping, desk_id, *, threads=None, defer_binaries=False
+        self,
+        connection,
+        client,
+        mapping,
+        desk_id,
+        *,
+        threads=None,
+        defer_binaries=False,
+        max_new_posts=None,
+        load_ticket_attachments=True,
     ):
+        """Import Desk threads. Return True when max_new_posts stopped the pass early."""
         threads = threads if threads is not None else client.list_threads(desk_id)
         threads = sort_threads_for_chatter(threads)
-        ticket_attachments_by_thread = self._ticket_attachments_by_thread(client, desk_id)
+        ticket_attachments_by_thread = (
+            self._ticket_attachments_by_thread(client, desk_id) if load_ticket_attachments else {}
+        )
         CommentMap = self.env["mpi.zoho.desk.comment.map"]
+        comment_maps = {
+            row.desk_thread_id: row
+            for row in CommentMap.search([("ticket_map_id", "=", mapping.id)])
+        }
+        posted = 0
         for thread in threads:
             thread_id = str(thread.get("id") or "")
             if not thread_id:
                 continue
-            thread = self._resolve_thread(client, desk_id, thread)
+            comment_map = comment_maps.get(thread_id)
+            already_posted = bool(comment_map and comment_map.mail_message_id)
+            if not already_posted and max_new_posts is not None and posted >= max_new_posts:
+                return True
+            needs_body = (not already_posted) or self._desk_chatter_body_stored_as_escaped_html(
+                comment_map.mail_message_id
+            )
+            if needs_body:
+                thread = self._resolve_thread(client, desk_id, thread)
             att_rows = merge_desk_attachment_rows(
                 thread.get("attachments") or [],
                 ticket_attachments_by_thread.get(thread_id) or [],
             )
-            comment_map = CommentMap.search(
-                [("ticket_map_id", "=", mapping.id), ("desk_thread_id", "=", thread_id)],
-                limit=1,
-            )
-            if comment_map.mail_message_id:
+            if comment_map and comment_map.mail_message_id:
                 message = comment_map.mail_message_id
                 if self._desk_chatter_body_stored_as_escaped_html(message):
                     message.with_context(mpi_zoho_skip_outbox=True).write(
@@ -672,36 +755,42 @@ class MpiZohoSync(models.AbstractModel):
                 desk_thread_id=thread_id,
             )
             raw_time = thread.get("sendDateTime") or thread.get("createdTime")
-            message = mapping.helpdesk_ticket_id.with_context(mpi_zoho_skip_outbox=True).message_post(
-                body=self._desk_chatter_body_from_thread(
-                    client, thread, mapping=mapping, desk_id=desk_id
-                ),
+            body = self._desk_chatter_body_from_thread(
+                client, thread, mapping=mapping, desk_id=desk_id
+            )
+            message = mapping.helpdesk_ticket_id.with_context(**_IMPORT_MESSAGE_CONTEXT).message_post(
+                body=body,
                 subtype_xmlid=subtype,
                 message_type="comment",
                 attachment_ids=attachment_ids or False,
                 date=fields.Datetime.to_string(self._parse_desk_dt(raw_time)),
             )
-            message.with_context(mpi_zoho_skip_outbox=True).write(
-                {
-                    "body": self._desk_chatter_body_from_thread(
-                        client,
-                        thread,
-                        mapping=mapping,
-                        desk_id=desk_id,
-                        mail_message=message,
-                    )
-                }
-            )
+            raw_content = str(thread.get("content") or "")
+            if not defer_binaries and "/inlineImages/" in raw_content:
+                message.with_context(**_IMPORT_MESSAGE_CONTEXT).write(
+                    {
+                        "body": self._desk_chatter_body_from_thread(
+                            client,
+                            thread,
+                            mapping=mapping,
+                            desk_id=desk_id,
+                            mail_message=message,
+                        )
+                    }
+                )
             if comment_map:
                 comment_map.write({"mail_message_id": message.id})
             else:
-                CommentMap.create(
+                comment_map = CommentMap.create(
                     {
                         "ticket_map_id": mapping.id,
                         "desk_thread_id": thread_id,
                         "mail_message_id": message.id,
                     }
                 )
+                comment_maps[thread_id] = comment_map
+            posted += 1
+        return False
 
     def _sync_attachments_on_known_thread(
         self,
@@ -1101,6 +1190,16 @@ class MpiZohoSync(models.AbstractModel):
                     )
                 mapping.source_removed = True
             return
+        if event_type in _THREAD_WEBHOOK_EVENTS:
+            ticket_id = str(
+                ticket_payload.get("ticketId")
+                or payload.get("ticketId")
+                or (ticket_payload.get("ticket") or {}).get("id")
+                or ""
+            )
+            if ticket_id:
+                self._apply_thread_webhook(connection, ticket_payload, ticket_id)
+            return
         if not desk_id:
             return
         mapping = self.env["mpi.zoho.desk.ticket.map"].search(
@@ -1133,4 +1232,41 @@ class MpiZohoSync(models.AbstractModel):
             backfill=False,
             force_side_content=force_side or not mapping,
             partner_cache={},
+        )
+
+    def _apply_thread_webhook(self, connection, thread_payload, desk_ticket_id):
+        """Append one Desk thread. Existing tickets are not re-listed."""
+        mapping = self.env["mpi.zoho.desk.ticket.map"].search(
+            [
+                ("connection_id", "=", connection.id),
+                ("desk_ticket_id", "=", str(desk_ticket_id)),
+            ],
+            limit=1,
+        )
+        client = connection._make_client()
+        if not mapping or not mapping.helpdesk_ticket_id:
+            detail = client.get_ticket(desk_ticket_id)
+            self._apply_desk_ticket(
+                connection,
+                client,
+                detail,
+                backfill=False,
+                force_side_content=True,
+                partner_cache={},
+            )
+            return
+        thread = dict(thread_payload or {})
+        thread_id = str(thread.get("id") or "")
+        if thread_id and not thread_body(thread):
+            thread = client.get_thread(desk_ticket_id, thread_id)
+        if not thread.get("id"):
+            return
+        self._sync_threads_in(
+            connection,
+            client,
+            mapping,
+            str(desk_ticket_id),
+            threads=[thread],
+            defer_binaries=False,
+            load_ticket_attachments=False,
         )

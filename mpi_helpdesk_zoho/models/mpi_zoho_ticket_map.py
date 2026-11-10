@@ -20,6 +20,11 @@ class MpiZohoTicketMap(models.Model):
         [("desk", "Desk"), ("odoo", "Odoo"), ("connector", "Connector")]
     )
     source_removed = fields.Boolean()
+    desk_threads_synced = fields.Boolean(
+        default=False,
+        index=True,
+        help="True after a full Desk thread list was imported for this ticket.",
+    )
 
     _ticket_uniq = models.Constraint(
         "UNIQUE(helpdesk_ticket_id)",

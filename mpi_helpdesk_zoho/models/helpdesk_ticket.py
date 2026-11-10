@@ -79,9 +79,18 @@ class HelpdeskTicket(models.Model):
 
     def _mpi_zoho_connection(self):
         self.ensure_one()
-        return self.env["mpi.zoho.desk.connection"].search(
-            [("company_id", "=", self.company_id.id), ("active", "=", True)], limit=1
-        )
+        company_id = self.company_id.id or 0
+        cache = self.env.cr.precommit.data.setdefault("mpi_zoho_connection_by_company", {})
+        if company_id not in cache:
+            cache[company_id] = self.env["mpi.zoho.desk.connection"].search(
+                [
+                    ("company_id", "=", company_id),
+                    ("active", "=", True),
+                    ("state", "=", "verified"),
+                ],
+                limit=1,
+            )
+        return cache[company_id]
 
     def _mpi_zoho_queue(self, event_type, payload=None):
         if self.env.context.get("mpi_zoho_skip_outbox"):
@@ -103,7 +112,6 @@ class HelpdeskTicket(models.Model):
                     "payload": payload or {},
                 }
             )
-            connection._schedule_catchup_once()
 
     @api.model_create_multi
     def create(self, vals_list):
